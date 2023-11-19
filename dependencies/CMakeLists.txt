@@ -1,0 +1,4 @@
+add_subdirectory(openxr_ext_loader)
+add_subdirectory(spdlog)
+add_subdirectory(glm)
+add_subdirectory(VulkanMemoryAllocator)
