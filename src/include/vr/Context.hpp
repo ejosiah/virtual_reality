@@ -35,18 +35,7 @@ namespace vr {
       [[nodiscard]]
       std::vector<XrViewConfigurationView> views(XrViewConfigurationType viewType) const;
 
-        void destroy() {
-            spdlog::debug("destroying OpenXR context ...");
-#ifndef NDEBUG
-#ifdef XR_DEBUG
-            xrDestroyDebugUtilsMessengerEXT(debugMessenger);
-#endif
-#endif
-            xrDestroyInstance(instance);
-            spdlog::info("OpenXR context destroyed");
-            instance = XR_NULL_HANDLE;
-            systemId = 0;
-        }
+      void destroy();
     };
 
     std::optional<Context> createContext(const ContextCreation& creation);

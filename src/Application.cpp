@@ -12,13 +12,16 @@
 namespace vr {
 
     Application::Application(
+            const ContextCreation &creation,
+            const SessionConfig& sessionConfig,
             std::shared_ptr<Renderer> renderer,
-            GraphicsFactory &&graphicsFactory,
-            const ContextCreation &creation
+            GraphicsFactory &&graphicsFactory
+
     )
-    : m_renderer(std::move(renderer))
+    : m_contextCreator(creation)
+    , m_sessionConfig(sessionConfig)
+    , m_renderer(std::move(renderer))
     , createGraphicsService(std::move(graphicsFactory))
-    , m_contextCreator(creation)
     , backoff("failed to create XR instance")
     {}
 
@@ -36,7 +39,7 @@ namespace vr {
             graphicsService->init();
             m_renderer->set(*context, graphicsService);
 
-            SessionService session{ *context, graphicsService, m_renderer };
+            SessionService session{ *context, m_sessionConfig, graphicsService, m_renderer };
             session.create();
 
             auto event = makeStruct<XrEventDataBuffer>();

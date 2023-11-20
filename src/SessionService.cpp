@@ -12,9 +12,11 @@ namespace vr {
 
     SessionService::SessionService(
             const Context &context
+            , const SessionConfig& config
             , std::shared_ptr<GraphicsService> graphics
             , std::shared_ptr<Renderer> renderer)
     : m_ctx(context)
+    , m_config(config)
     , m_graphics(std::move(graphics))
     , m_renderer(std::move(renderer))
     {
@@ -30,6 +32,7 @@ namespace vr {
     }
 
     void SessionService::create() {
+        m_config.validate(m_ctx);
         auto createInfo = makeStruct<XrSessionCreateInfo>();
         const auto& graphicsBinding = m_graphics->graphicsBinding();
         createInfo.systemId = m_ctx.systemId;
@@ -67,21 +70,23 @@ namespace vr {
             throw std::runtime_error{"chosen swapchain image format unsupported"};
         }
 
-        auto viewConfig = m_ctx.views(XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO).front();
+        for(const auto& spec : m_config._swapchains) {
+            XrSwapchainCreateInfo createInfo = makeStruct<XrSwapchainCreateInfo>();
+            createInfo.usageFlags = spec._usageFlags;
+            createInfo.format = spec._format;
+            createInfo.sampleCount = spec._sampleCount;
+            createInfo.width = spec._width;
+            createInfo.height = spec._height;
+            createInfo.faceCount = spec._faceCount;
+            createInfo.arraySize = spec._arraySize;
+            createInfo.mipCount = spec._mipCount;
 
-        XrSwapchainCreateInfo createInfo = makeStruct<XrSwapchainCreateInfo>();
-        createInfo.usageFlags = XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT;
-        createInfo.format = format;
-        createInfo.sampleCount = viewConfig.recommendedSwapchainSampleCount;
-        createInfo.width = viewConfig.recommendedImageRectWidth;
-        createInfo.height = viewConfig.recommendedImageRectHeight;
-        createInfo.faceCount = 1;
-        createInfo.arraySize = 1;
-        createInfo.mipCount = 1;
+            XrSwapchain swapchain;
+            LOG_ERROR(m_ctx.instance, xrCreateSwapchain(m_session, &createInfo, &swapchain));
 
-        LOG_ERROR(m_ctx.instance, xrCreateSwapchain(m_session, &createInfo, &m_swapchain.handle));
-
-         m_graphics->setSwapChainImages(m_swapchain.handle);
+            m_swapchains.push_back({ spec._name, swapchain});
+        }
+        m_graphics->setSwapChains(m_swapchains);
     }
     
     void SessionService::stop() {
@@ -110,7 +115,7 @@ namespace vr {
         frame.layers.clear();
 
         const auto session = m_sessionService.m_session;
-        const auto swapchain = m_sessionService.m_swapchain.handle;
+        const auto swapchain = m_sessionService.m_swapchains.front().handle;
 
         static auto frameState = makeStruct<XrFrameState>();
         xrWaitFrame(session, XR_NULL_HANDLE, &frameState);

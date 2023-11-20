@@ -1,6 +1,8 @@
 #pragma once
 
-#include <vr/Context.hpp>
+#include "vr/Context.hpp"
+#include "vr/Models.hpp"
+
 #include <openxr/openxr.h>
 
 #include <utility>
@@ -26,7 +28,7 @@ namespace vr {
 
         virtual void shutdown() {}
 
-        virtual void setSwapChainImages(XrSwapchain swapchain) = 0;
+        virtual void setSwapChains(std::vector<SwapChain> swapchains) = 0;
 
         [[nodiscard]]
         virtual int64_t swapChainFormat() const  = 0;
