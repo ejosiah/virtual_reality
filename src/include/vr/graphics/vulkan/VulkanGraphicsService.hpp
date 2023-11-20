@@ -16,13 +16,19 @@
 
 namespace vr {
 
+    struct VulkanSwapChain{
+        std::string name;
+        XrSwapchain swapchain;
+        std::vector<XrSwapchainImageVulkanKHR> images;
+    };
+
     class VulkanGraphicsService : public GraphicsService {
     public:
         explicit VulkanGraphicsService(const Context &context);
 
         ~VulkanGraphicsService() override = default;
 
-        void setSwapChainImages(XrSwapchain swapchain)  final;
+        void setSwapChains(std::vector<SwapChain> swapchains)  final;
 
         [[nodiscard]]
         const VulkanContext& vulkanContext() const;
@@ -62,6 +68,8 @@ namespace vr {
         
         void createDevice();
 
+        void createCommandPool();
+
         void createCommandBuffers();
 
         void initMemoryAllocator();
@@ -84,7 +92,7 @@ namespace vr {
         VkDevice m_device{VK_NULL_HANDLE};
         VkQueue m_graphicsQueue{VK_NULL_HANDLE};
         uint32_t m_graphicsFamilyIndex{};
-        std::vector<XrSwapchainImageVulkanKHR> m_swapchainImages;
+        std::vector<VulkanSwapChain> m_swapChains;
         VmaMemoryAllocator allocator;
         VkCommandPool m_commandPool;
         std::vector<VkCommandBuffer> m_commandBuffers;

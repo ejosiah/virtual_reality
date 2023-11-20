@@ -4,15 +4,15 @@
 #include "Models.hpp"
 #include "graphics/Graphics.hpp"
 #include "graphics/Renderer.hpp"
+#include "SessionConfig.hpp"
 
 #include <openxr/openxr.h>
 
 #include <unordered_map>
 #include <memory>
+#include <span>
 
 namespace vr {
-
-    class SessionState;
 
     class SessionService {
     public:
@@ -28,6 +28,7 @@ namespace vr {
 
         SessionService(
                 const Context &context
+                , const SessionConfig& config
                 , std::shared_ptr<GraphicsService> graphics
                 , std::shared_ptr<Renderer> renderer);
 
@@ -59,10 +60,11 @@ namespace vr {
 
     private:
         const Context& m_ctx;
+        const SessionConfig& m_config;
         std::shared_ptr<GraphicsService> m_graphics;
         std::shared_ptr<Renderer> m_renderer;
         XrSession m_session{XR_NULL_HANDLE};
-        SwapChain m_swapchain{XR_NULL_HANDLE};
+        std::vector<SwapChain> m_swapchains;
         XrSessionState m_currentState{XR_SESSION_STATE_UNKNOWN};
         std::unordered_map<XrSessionState, std::unique_ptr<SessionState>> m_states;
         std::vector<XrView> views;

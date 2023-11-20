@@ -128,6 +128,19 @@ namespace vr {
         }
     }
 
+    void Context::destroy() {
+        spdlog::debug("destroying OpenXR context ...");
+#ifndef NDEBUG
+#ifdef XR_DEBUG
+        xrDestroyDebugUtilsMessengerEXT(debugMessenger);
+#endif
+#endif
+        xrDestroyInstance(instance);
+        spdlog::info("OpenXR context destroyed");
+        instance = XR_NULL_HANDLE;
+        systemId = 0;
+    }
+
     std::optional<Context> ContextCreation::create() const {
         validate();
         return createContext(*this);

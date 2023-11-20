@@ -12,7 +12,7 @@ namespace vr {
         pickDevice();
         setupQueues();
         createDevice();
-        createCommandBuffers();
+        createCommandPool();
         initMemoryAllocator();
         initializeGraphicsBinding();
         logDevice();
@@ -64,17 +64,22 @@ namespace vr {
         vkGetDeviceQueue(m_device, m_graphicsFamilyIndex, 0, &m_graphicsQueue);
     }
 
-    void VulkanGraphicsService::createCommandBuffers() {
+    void VulkanGraphicsService::createCommandPool() {
         VkCommandPoolCreateInfo createInfo{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
         createInfo.queueFamilyIndex = m_graphicsFamilyIndex;
         createInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
         CHECK_VULKAN(vkCreateCommandPool(m_device, &createInfo, VK_NULL_HANDLE, &m_commandPool));
 
+
+    }
+
+    void VulkanGraphicsService::createCommandBuffers() {
+        assert(!m_swapChains.empty() && !m_swapChains.front().images.empty());
         VkCommandBufferAllocateInfo allocateInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
         allocateInfo.commandPool = m_commandPool;
         allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocateInfo.commandBufferCount = m_swapchainImages.size();
+        allocateInfo.commandBufferCount = m_swapChains.front().images.size();
 
         m_commandBuffers.resize(allocateInfo.commandBufferCount);
         CHECK_VULKAN(vkAllocateCommandBuffers(m_device, &allocateInfo, m_commandBuffers.data()));
@@ -166,12 +171,18 @@ namespace vr {
         return std::make_shared<VulkanGraphicsService>(context);
     }
 
-    void VulkanGraphicsService::setSwapChainImages(XrSwapchain swapchain) {
+    void VulkanGraphicsService::setSwapChains(std::vector<SwapChain> swapchains) {
         XrResult result;
-        std::tie(result, m_swapchainImages) = enumerate<XrSwapchainImageVulkanKHR>([&](auto sizePtr, auto structPtr) {
-            return xrEnumerateSwapchainImages(swapchain, *sizePtr, sizePtr, reinterpret_cast<XrSwapchainImageBaseHeader*>(structPtr));
-        });
-        LOG_ERROR(m_context.instance, result);
+        for(auto swapchain : swapchains) {
+            VulkanSwapChain vulkanSwapChain{ swapchain.name, swapchain.handle };
+            std::tie(result, vulkanSwapChain.images) =
+                enumerate<XrSwapchainImageVulkanKHR>([&](auto sizePtr, auto structPtr) {
+                    return xrEnumerateSwapchainImages(swapchain.handle, *sizePtr, sizePtr, reinterpret_cast<XrSwapchainImageBaseHeader *>(structPtr));
+                });
+            LOG_ERROR(m_context.instance, result);
+            m_swapChains.push_back(vulkanSwapChain);
+        }
+        createCommandBuffers();
     }
 
 }

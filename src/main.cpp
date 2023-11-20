@@ -2,7 +2,11 @@
 #include "vr/graphics/vulkan/VulkanContext.hpp"
 #include "vr/graphics/Graphics.hpp"
 #include "vr/graphics/vulkan/VulkanGraphicsService.hpp"
+#include "vr/SessionConfig.hpp"
 #include "vr/Application.hpp"
+#include "vr/specification/Specifications.hpp"
+
+#include <vulkan/vulkan.h>
 
 int main() {
     spdlog::set_level(spdlog::level::debug);
@@ -17,16 +21,22 @@ int main() {
                 .apiVersion(VK_API_VERSION_1_3);
 
 
-//    auto ctx = creation.appName("OpenXR test").create();
-//    std::unique_ptr<vr::GraphicsService> graphicsService = std::make_unique<vr::VulkanGraphicsService>(ctx.value());
-//    graphicsService->init();
-//    graphicsService->shutdown();
-//    ctx->destroy();
+    vr::SessionConfig sessionConfig{};
 
-    auto renderer = vr::VoidRenderer::shared();
-    auto graphicsFactory = vr::VulkanGraphicsService::shared;
+    sessionConfig.addSwapChain(
+        vr::SwapchainSpecification()
+            .usage()
+                .colorAttachment()
+            .format(VK_FORMAT_R8G8B8A8_UNORM)
+            .width(2048)
+            .height(2048));
 
-    vr::Application application{std::move(renderer), graphicsFactory, creation };
+
+    vr::Application application{
+        creation
+        , sessionConfig
+        , vr::VoidRenderer::shared()
+        , vr::VulkanGraphicsService::shared };
 
     try {
         application.run();
