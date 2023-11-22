@@ -12,6 +12,7 @@ namespace vr {
         VkBuffer handle{};
         VkBufferCreateInfo info{};
         VmaAllocation allocation{};
+        void* mapping{};
     };
 
     struct Image {

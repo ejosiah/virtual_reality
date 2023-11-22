@@ -146,10 +146,24 @@ inline XrViewState makeStruct<XrViewState>() {
     return { XR_TYPE_VIEW_STATE };
 }
 
+template<>
+inline XrView makeStruct<XrView>() {
+    return { XR_TYPE_VIEW };
+}
 
 template<>
 inline XrEventDataBuffer makeStruct<XrEventDataBuffer>() {
     return { XR_TYPE_EVENT_DATA_BUFFER };
+}
+
+template<>
+inline XrCompositionLayerProjection makeStruct<XrCompositionLayerProjection>() {
+    return { XR_TYPE_COMPOSITION_LAYER_PROJECTION };
+}
+
+template<>
+inline XrCompositionLayerProjectionView makeStruct<XrCompositionLayerProjectionView>() {
+    return { XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW };
 }
 
 /***********************************************************************
@@ -170,4 +184,59 @@ inline VkBufferCreateInfo makeStruct<VkBufferCreateInfo>() {
 template<>
 inline VkImageCreateInfo makeStruct<VkImageCreateInfo>() {
     return { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+}
+
+template<>
+inline VkCommandBufferAllocateInfo makeStruct<VkCommandBufferAllocateInfo>() {
+    return { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
+}
+
+template<>
+inline VkCommandBufferBeginInfo makeStruct<VkCommandBufferBeginInfo>() {
+    return { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+}
+
+template<>
+inline VkSubmitInfo makeStruct<VkSubmitInfo>() {
+    return { VK_STRUCTURE_TYPE_SUBMIT_INFO };
+}
+
+template<>
+inline VkBufferMemoryBarrier makeStruct<VkBufferMemoryBarrier>() {
+    return { VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
+}
+
+template<>
+inline VkMemoryBarrier makeStruct<VkMemoryBarrier>() {
+    return { VK_STRUCTURE_TYPE_MEMORY_BARRIER };
+}
+
+template<>
+inline VkImageMemoryBarrier makeStruct<VkImageMemoryBarrier>() {
+    return { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+}
+
+template<>
+inline VkRenderingInfo makeStruct<VkRenderingInfo>() {
+    return { VK_STRUCTURE_TYPE_RENDERING_INFO };
+}
+
+template<>
+inline VkRenderingAttachmentInfo makeStruct<VkRenderingAttachmentInfo>() {
+    return { VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
+}
+
+template<>
+inline VkImageViewCreateInfo makeStruct<VkImageViewCreateInfo>() {
+    return { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+}
+
+template<>
+inline VkPhysicalDeviceDynamicRenderingFeatures makeStruct<VkPhysicalDeviceDynamicRenderingFeatures>() {
+    return { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES };
+}
+
+template<>
+inline VkDeviceCreateInfo makeStruct<VkDeviceCreateInfo>() {
+    return { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
 }

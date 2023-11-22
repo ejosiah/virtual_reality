@@ -37,9 +37,10 @@ namespace vr {
         const auto& graphicsBinding = m_graphics->graphicsBinding();
         createInfo.systemId = m_ctx.systemId;
         createInfo.next = &graphicsBinding;
-        LOG_ERROR(m_ctx.instance, xrCreateSession(m_ctx.instance, &createInfo, &m_session));
+        LOG_ERROR(m_ctx.instance, xrCreateSession(m_ctx.instance, &createInfo, &m_session))
         createSwapChain();
         createMainViewSpace();
+        m_renderer->init();
         m_currentState = XR_SESSION_STATE_UNKNOWN;
     }
     
@@ -48,7 +49,7 @@ namespace vr {
         createInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
         createInfo.poseInReferenceSpace.position = {0, 0, 0};
         createInfo.poseInReferenceSpace.orientation = {0, 0, 0, 1};
-        LOG_ERROR(m_ctx.instance, xrCreateReferenceSpace(m_session, &createInfo, &m_mainViewSpace));
+        LOG_ERROR(m_ctx.instance, xrCreateReferenceSpace(m_session, &createInfo, &m_mainViewSpace))
     }
 
     void SessionService::handle(const XrEventDataBuffer &event) {
@@ -82,9 +83,9 @@ namespace vr {
             createInfo.mipCount = spec._mipCount;
 
             XrSwapchain swapchain;
-            LOG_ERROR(m_ctx.instance, xrCreateSwapchain(m_session, &createInfo, &swapchain));
+            LOG_ERROR(m_ctx.instance, xrCreateSwapchain(m_session, &createInfo, &swapchain))
 
-            m_swapchains.push_back({ spec._name, swapchain});
+            m_swapchains.push_back({ spec, swapchain});
         }
         m_graphics->setSwapChains(m_swapchains);
     }
@@ -138,11 +139,19 @@ namespace vr {
                     viewLocateInfo.space = m_sessionService.m_mainViewSpace;
                     uint32_t numViews;
                     xrLocateViews(session, &viewLocateInfo, &viewState, 0, &numViews, XR_NULL_HANDLE);
-                    std::vector<XrView> views(numViews);
-                    xrLocateViews(session, &viewLocateInfo, &viewState, numViews, &numViews, views.data());
+                    std::vector<XrView> views(numViews, { XR_TYPE_VIEW});
+                    LOG_ERROR(m_sessionService.m_ctx.instance, xrLocateViews(session, &viewLocateInfo, &viewState, numViews, &numViews, views.data())) ;
                     ViewInfo viewInfo{viewState, std::move(views)};
 
                     frame = frameLoop(imageIndex, viewInfo);
+
+                    // FIXME make spaces and views available to render
+                    for(auto layer : frame.layers) {
+                        layer->space = m_sessionService.m_mainViewSpace;
+                        auto lp = reinterpret_cast<XrCompositionLayerQuad*>(layer);
+                        auto count = lp->size;
+                    }
+
                 }
                 xrReleaseSwapchainImage(swapchain, nullptr);
             }
@@ -171,13 +180,13 @@ namespace vr {
         if(state == XR_SESSION_STATE_READY) {
             m_sessionService.transitionTo(state);
             if (!m_sessionService.m_ctx.isSupported(XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO)) {
-                THROW("Stereo configuration required");
+                THROW("Stereo configuration required")
             }
 
             auto beginInfo = makeStruct<XrSessionBeginInfo>();
             beginInfo.primaryViewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
             auto result =  xrBeginSession(m_sessionService.m_session, &beginInfo);
-            LOG_ERROR(m_sessionService.m_ctx.instance, result);
+            LOG_ERROR(m_sessionService.m_ctx.instance, result)
             spdlog::debug("XR session begun");
         }else if(state == XR_SESSION_STATE_EXITING || state == XR_SESSION_STATE_LOSS_PENDING) {
             m_sessionService.transitionTo(state);

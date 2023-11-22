@@ -19,6 +19,9 @@ namespace vr {
     struct VulkanSwapChain{
         std::string name;
         XrSwapchain swapchain;
+        uint32_t width;
+        uint32_t height;
+        VkFormat format;
         std::vector<XrSwapchainImageVulkanKHR> images;
     };
 
@@ -32,9 +35,11 @@ namespace vr {
 
         [[nodiscard]]
         const VulkanContext& vulkanContext() const;
+
         void init() final;
 
-        [[nodiscard]] const XrBaseInStructure& graphicsBinding() const final;
+        [[nodiscard]]
+        const XrBaseInStructure& graphicsBinding() const final;
 
         Buffer createStagingBuffer(VkDeviceSize size);
 
@@ -53,6 +58,8 @@ namespace vr {
             return m_device;
         }
 
+        const VulkanSwapChain& getSwapChain(const std::string& name);
+
         void shutdown() override {
             allocator.destroy();
         }
@@ -60,6 +67,45 @@ namespace vr {
         VkCommandBuffer commandBuffer(uint32_t imageIndex);
 
         static std::shared_ptr<GraphicsService> shared(const Context& context);
+
+        template<typename T>
+        T* map(Buffer& buffer) {
+            vmaMapMemory(allocator.allocator, buffer.allocation, &buffer.mapping);
+            return reinterpret_cast<T*>(buffer.mapping);
+        }
+
+        void unmap(Buffer& buffer) const {
+            vmaUnmapMemory(allocator.allocator, buffer.allocation);
+        }
+
+        void scoped(auto&& operation) {
+            auto allocateInfo = makeStruct<VkCommandBufferAllocateInfo>();
+            allocateInfo.commandPool = m_scopedCommandPool;
+            allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            allocateInfo.commandBufferCount = 1;
+
+            VkCommandBuffer commandBuffer;
+            vkAllocateCommandBuffers(m_device, &allocateInfo, &commandBuffer);
+
+            auto beginInfo = makeStruct<VkCommandBufferBeginInfo>();
+            beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+            vkBeginCommandBuffer(commandBuffer, &beginInfo);
+            operation(commandBuffer);
+            vkEndCommandBuffer(commandBuffer);
+
+            auto submitInfo = makeStruct<VkSubmitInfo>();
+            submitInfo.pCommandBuffers = &commandBuffer;
+            submitInfo.commandBufferCount = 1;
+
+            CHECK_VULKAN(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE));
+            vkQueueWaitIdle(m_graphicsQueue);
+            vkFreeCommandBuffers(m_device, m_scopedCommandPool, 1, &commandBuffer);
+        }
+
+        VkImageView createImageView(VkImageViewCreateInfo createInfo);
+
+        void copyToImage(std::span<char> data);
 
     private:
         void pickDevice();
@@ -95,6 +141,7 @@ namespace vr {
         std::vector<VulkanSwapChain> m_swapChains;
         VmaMemoryAllocator allocator;
         VkCommandPool m_commandPool;
+        VkCommandPool m_scopedCommandPool;
         std::vector<VkCommandBuffer> m_commandBuffers;
         bool initialized{false};
         std::vector<Buffer> m_buffers;

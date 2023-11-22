@@ -63,12 +63,12 @@ namespace vr {
         const SessionConfig& m_config;
         std::shared_ptr<GraphicsService> m_graphics;
         std::shared_ptr<Renderer> m_renderer;
-        XrSession m_session{XR_NULL_HANDLE};
+        XrSession m_session{};
         std::vector<SwapChain> m_swapchains;
         XrSessionState m_currentState{XR_SESSION_STATE_UNKNOWN};
         std::unordered_map<XrSessionState, std::unique_ptr<SessionState>> m_states;
         std::vector<XrView> views;
-        XrSpace m_mainViewSpace;
+        XrSpace m_mainViewSpace{};
     };
 
     class SessionState {

@@ -18,6 +18,8 @@ namespace vr {
             m_graphics = std::move(graphics);
         }
 
+        virtual void init() {}
+
         virtual FrameEnd paused(uint32_t imageIndex, const ViewInfo& viewInfo) = 0;
 
         virtual FrameEnd render(uint32_t imageIndex, const ViewInfo& viewInfo) = 0;

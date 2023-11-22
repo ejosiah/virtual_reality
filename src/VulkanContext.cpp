@@ -68,6 +68,8 @@ namespace vr {
         vulkanCreatInfo.pApplicationInfo = &appInfo;
         vulkanCreatInfo.enabledExtensionCount = extensions.size();
         vulkanCreatInfo.ppEnabledExtensionNames = extensions.data();
+        vulkanCreatInfo.enabledLayerCount = layers.size();
+        vulkanCreatInfo.ppEnabledLayerNames = layers.data();
 
         auto xrVulkanCreateInfo = makeStruct<XrVulkanInstanceCreateInfoKHR>();
         xrVulkanCreateInfo.systemId = ctx.systemId;

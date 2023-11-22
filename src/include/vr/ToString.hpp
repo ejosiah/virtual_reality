@@ -88,7 +88,7 @@ namespace vr {
     }
 
     [[maybe_unused]]
-    inline std::string versionToString(uint32_t version) {
+    inline std::string versionToString(int64_t version) {
         return std::format("{}.{}.{}", XR_VERSION_MAJOR(version), XR_VERSION_MINOR(version), XR_VERSION_PATCH(version));
     }
 }

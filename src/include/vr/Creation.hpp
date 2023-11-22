@@ -44,18 +44,18 @@ namespace vr {
         }
 
         [[maybe_unused]]
-        VulkanContextCreation& addExtension(const std::string& ext) {
-            extensions.push_back(ext.c_str());
+        VulkanContextCreation& addExtension(const char* ext) {
+            extensions.push_back(ext);
             return *this;
         }
 
         [[maybe_unused]]
-        VulkanContextCreation& addLayer(const std::string& layer) {
-            layers.push_back(layer.c_str());
+        VulkanContextCreation& addLayer(const char* layer) {
+            layers.push_back(layer);
             return *this;
         }
 
-        VulkanContextCreation& appName(const std::string& name) {
+        VulkanContextCreation& appName(const char*  name) {
             _appName = name;
             return *this;
         }
@@ -65,7 +65,7 @@ namespace vr {
             return *this;
         }
 
-        VulkanContextCreation& engine(const std::string& name) {
+        VulkanContextCreation& engine(const char*  name) {
             _engineName = name;
             return *this;
         }
@@ -110,12 +110,12 @@ namespace vr {
         };
 
         [[maybe_unused]]
-        ContextCreation& addExtension(const std::string& extension) {
-            extensions.push_back(extension.c_str());
+        ContextCreation& addExtension(const char*  extension) {
+            extensions.push_back(extension);
             return *this;
         }
 
-        ContextCreation& appName(const std::string& name) {
+        ContextCreation& appName(const char*  name) {
             _appName = name;
             return *this;
         }

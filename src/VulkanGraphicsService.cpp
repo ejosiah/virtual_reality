@@ -1,3 +1,4 @@
+#include "check.hpp"
 #include "vr/graphics/vulkan/VulkanGraphicsService.hpp"
 
 namespace vr {
@@ -48,7 +49,15 @@ namespace vr {
         queueCreateInfo.queueCount = 1;
         queueCreateInfo.pQueuePriorities = &priority;
 
+        std::vector<const char*> extensions{
+            VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME
+        };
+
+        auto dynamicRenderingFeatures = makeStruct<VkPhysicalDeviceDynamicRenderingFeatures>();
+        dynamicRenderingFeatures.dynamicRendering = VK_TRUE;
+
         VkDeviceCreateInfo createDeviceInfo{ VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
+        createDeviceInfo.pNext = &dynamicRenderingFeatures;
         createDeviceInfo.queueCreateInfoCount = 1;
         createDeviceInfo.pQueueCreateInfos = &queueCreateInfo;
 
@@ -57,6 +66,9 @@ namespace vr {
         createInfo.pfnGetInstanceProcAddr = vkGetInstanceProcAddr;
         createInfo.vulkanPhysicalDevice = m_physicalDevice;
         createInfo.vulkanCreateInfo = &createDeviceInfo;
+        VkPhysicalDeviceFeatures features{};
+        features.shaderStorageImageMultisample = VK_TRUE;
+        createDeviceInfo.pEnabledFeatures = &features;
 
         VkResult result;
         LOG_ERROR(xrInstance, xrCreateVulkanDeviceKHR(xrInstance, &createInfo, &m_device, &result));
@@ -71,7 +83,8 @@ namespace vr {
 
         CHECK_VULKAN(vkCreateCommandPool(m_device, &createInfo, VK_NULL_HANDLE, &m_commandPool));
 
-
+        createInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+        CHECK_VULKAN(vkCreateCommandPool(m_device, &createInfo, VK_NULL_HANDLE, &m_scopedCommandPool));
     }
 
     void VulkanGraphicsService::createCommandBuffers() {
@@ -134,7 +147,7 @@ namespace vr {
     Buffer VulkanGraphicsService::createStagingBuffer(VkDeviceSize size) {
         auto createInfo = makeStruct<VkBufferCreateInfo>();
         createInfo.size = size;
-        createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
        return allocator.allocate(createInfo, VMA_MEMORY_USAGE_CPU_ONLY);
@@ -174,7 +187,9 @@ namespace vr {
     void VulkanGraphicsService::setSwapChains(std::vector<SwapChain> swapchains) {
         XrResult result;
         for(auto swapchain : swapchains) {
-            VulkanSwapChain vulkanSwapChain{ swapchain.name, swapchain.handle };
+            const auto spec = swapchain.spec;
+            VulkanSwapChain vulkanSwapChain{spec._name, swapchain.handle, spec._width
+                                            , spec._height, static_cast<VkFormat>(spec._format)};
             std::tie(result, vulkanSwapChain.images) =
                 enumerate<XrSwapchainImageVulkanKHR>([&](auto sizePtr, auto structPtr) {
                     return xrEnumerateSwapchainImages(swapchain.handle, *sizePtr, sizePtr, reinterpret_cast<XrSwapchainImageBaseHeader *>(structPtr));
@@ -183,6 +198,21 @@ namespace vr {
             m_swapChains.push_back(vulkanSwapChain);
         }
         createCommandBuffers();
+    }
+
+    const VulkanSwapChain &VulkanGraphicsService::getSwapChain(const std::string &name) {
+        auto itr = std::find_if(m_swapChains.begin(), m_swapChains.end(), [&name](const auto& sc){ return name == sc.name; });
+        if(itr == m_swapChains.end()){
+            THROW(std::format("swapChain[{}] not found", name));
+        }
+        return *itr;
+    }
+
+    VkImageView VulkanGraphicsService::createImageView(VkImageViewCreateInfo createInfo) {
+        VkImageView view;
+        vkCreateImageView(m_device, &createInfo, nullptr, &view);
+        
+        return view;
     }
 
 }
