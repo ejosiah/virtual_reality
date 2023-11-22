@@ -46,11 +46,11 @@ struct ClearScreen : public vr::VulkanRenderer {
 
     }
 
-    vr::FrameEnd paused(uint32_t imageIndex, const vr::ViewInfo &viewInfo) override {
-        return render(imageIndex, viewInfo);
+    vr::FrameEnd paused(const vr::FrameInfo &frameInfo) override {
+        return render(frameInfo);
     }
 
-    vr::FrameEnd render(uint32_t imageIndex, const vr::ViewInfo &viewInfo) override {
+    vr::FrameEnd render(const vr::FrameInfo &frameInfo) override {
         const auto swapChain = graphicsService().getSwapChain("main");
         graphicsService().scoped([&](auto cmdBuffer){
             auto info = makeStruct<VkRenderingInfo>();
@@ -60,7 +60,7 @@ struct ClearScreen : public vr::VulkanRenderer {
             info.colorAttachmentCount = 1;
 
             auto attachmentInfo = makeStruct<VkRenderingAttachmentInfo>();
-            attachmentInfo.imageView = imageViews[imageIndex];
+            attachmentInfo.imageView = imageViews[frameInfo.imageId.imageIndex];
             attachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
             attachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
             attachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -74,8 +74,8 @@ struct ClearScreen : public vr::VulkanRenderer {
         });
         for(int i = 0; i < 2; i++){
             auto& view = layerViews[i];
-            view.pose = viewInfo.views[i].pose;
-            view.fov = viewInfo.views[i].fov;
+            view.pose = frameInfo.viewInfo.views[i].pose;
+            view.fov = frameInfo.viewInfo.views[i].fov;
             view.subImage.swapchain = swapChain.swapchain;
             view.subImage.imageRect = {{0, 0}, static_cast<int32_t>(swapChain.width), static_cast<int32_t>(swapChain.height)};
             view.subImage.imageArrayIndex = 0;

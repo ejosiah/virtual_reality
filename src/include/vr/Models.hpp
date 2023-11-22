@@ -27,8 +27,8 @@ namespace vr {
     };
 
     struct FrameInfo {
-        ViewInfo viewInfo{};
         ImageId imageId{};
+        ViewInfo viewInfo{};
         XrSpace cameraSpace{};
     };
 

@@ -116,7 +116,7 @@ namespace vr {
         frame.layers.clear();
 
         const auto session = m_sessionService.m_session;
-        const auto swapchain = m_sessionService.m_swapchains.front().handle;
+        const auto swapchain = m_sessionService.m_swapchains.front();
 
         static auto frameState = makeStruct<XrFrameState>();
         xrWaitFrame(session, XR_NULL_HANDLE, &frameState);
@@ -125,12 +125,12 @@ namespace vr {
         if(XR_SUCCEEDED(xrBeginFrame(session, nullptr))) {
             if(frameState.shouldRender){
                 uint32_t imageIndex;
-                xrAcquireSwapchainImage(swapchain, nullptr, &imageIndex);
+                xrAcquireSwapchainImage(swapchain.handle, nullptr, &imageIndex);
 
                 auto waitInfo = makeStruct<XrSwapchainImageWaitInfo>();
                 waitInfo.timeout = XR_INFINITE_DURATION;
 
-                if (XR_UNQUALIFIED_SUCCESS(xrWaitSwapchainImage(swapchain, &waitInfo))) {
+                if (XR_UNQUALIFIED_SUCCESS(xrWaitSwapchainImage(swapchain.handle, &waitInfo))) {
 
                     auto viewState = makeStruct<XrViewState>();
                     auto viewLocateInfo = makeStruct<XrViewLocateInfo>();
@@ -141,19 +141,18 @@ namespace vr {
                     xrLocateViews(session, &viewLocateInfo, &viewState, 0, &numViews, XR_NULL_HANDLE);
                     std::vector<XrView> views(numViews, { XR_TYPE_VIEW});
                     LOG_ERROR(m_sessionService.m_ctx.instance, xrLocateViews(session, &viewLocateInfo, &viewState, numViews, &numViews, views.data())) ;
-                    ViewInfo viewInfo{viewState, std::move(views)};
+                    ViewInfo viewInfo{viewState, views};
 
-                    frame = frameLoop(imageIndex, viewInfo);
+                    frame = frameLoop({{swapchain.spec._name, imageIndex}, {viewState, std::move(views)},
+                                       m_sessionService.m_mainViewSpace});
 
                     // FIXME make spaces and views available to render
                     for(auto layer : frame.layers) {
                         layer->space = m_sessionService.m_mainViewSpace;
-                        auto lp = reinterpret_cast<XrCompositionLayerQuad*>(layer);
-                        auto count = lp->size;
                     }
 
                 }
-                xrReleaseSwapchainImage(swapchain, nullptr);
+                xrReleaseSwapchainImage(swapchain.handle, nullptr);
             }
 
             XrFrameEndInfo endFrameInfo = makeStruct<XrFrameEndInfo>();
@@ -203,12 +202,12 @@ namespace vr {
     }
 
 
-    FrameEnd SessionVisible::frameLoop(uint32_t imageIndex, const ViewInfo &viewInfo) {
-        return m_sessionService.m_renderer->paused(imageIndex, viewInfo);
+    FrameEnd SessionVisible::frameLoop(const FrameInfo &frameInfo) {
+        return m_sessionService.m_renderer->paused(frameInfo);
     }
 
-    FrameEnd SessionFocused::frameLoop(uint32_t imageIndex, const ViewInfo &viewInfo) {
-        return m_sessionService.m_renderer->render(imageIndex, viewInfo);
+    FrameEnd SessionFocused::frameLoop(const FrameInfo &frameInfo) {
+        return m_sessionService.m_renderer->render(frameInfo);
     }
 
 }

@@ -20,9 +20,9 @@ namespace vr {
 
         virtual void init() {}
 
-        virtual FrameEnd paused(uint32_t imageIndex, const ViewInfo& viewInfo) = 0;
+        virtual FrameEnd paused(const FrameInfo &frameInfo) = 0;
 
-        virtual FrameEnd render(uint32_t imageIndex, const ViewInfo& viewInfo) = 0;
+        virtual FrameEnd render(const FrameInfo &frameInfo) = 0;
 
     protected:
         std::shared_ptr<GraphicsService> m_graphics;
@@ -33,11 +33,11 @@ namespace vr {
     public:
         ~VoidRenderer() override = default;
 
-        FrameEnd paused(uint32_t imageIndex, const ViewInfo &viewInfo) override {
+        FrameEnd paused(const FrameInfo &frameInfo) override {
             return {};
         }
 
-        FrameEnd render(uint32_t imageIndex, const ViewInfo &viewInfo) override {
+        FrameEnd render(const FrameInfo &frameInfo) override {
             return {};
         }
 

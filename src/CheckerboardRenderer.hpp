@@ -122,11 +122,11 @@ struct CheckerboardRenderer : public vr::VulkanRenderer {
     }
 
 
-    vr::FrameEnd paused(uint32_t imageIndex, const vr::ViewInfo &viewInfo) override {
+    vr::FrameEnd paused(const vr::FrameInfo &frameInfo) override {
         return m_frameEnd;
     }
 
-    vr::FrameEnd render(uint32_t imageIndex, const vr::ViewInfo &viewInfo) override {
+    vr::FrameEnd render(const vr::FrameInfo &frameInfo) override {
         return m_frameEnd;
     }
 

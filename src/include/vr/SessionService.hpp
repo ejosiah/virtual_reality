@@ -85,7 +85,7 @@ namespace vr {
 
         virtual void processFrame() {}
 
-        virtual FrameEnd frameLoop(uint32_t imageIndex, const ViewInfo& viewInfo) {
+        virtual FrameEnd frameLoop(const FrameInfo &frameInfo) {
             return {};
         }
 
@@ -148,7 +148,7 @@ namespace vr {
         [[nodiscard]]
         XrSessionState state() const final { return XR_SESSION_STATE_VISIBLE; }
 
-        FrameEnd frameLoop(uint32_t imageIndex, const ViewInfo &viewInfo) final;
+        FrameEnd frameLoop(const FrameInfo &frameInfo) final;
     };
 
     class SessionFocused : public SessionStateRunning {
@@ -159,7 +159,7 @@ namespace vr {
         [[nodiscard]]
         XrSessionState state() const final { return XR_SESSION_STATE_FOCUSED; }
 
-        FrameEnd frameLoop(uint32_t imageIndex, const ViewInfo &viewInfo) final;
+        FrameEnd frameLoop(const FrameInfo &frameInfo) final;
     };
 
     class SessionStopping : public SessionState {
