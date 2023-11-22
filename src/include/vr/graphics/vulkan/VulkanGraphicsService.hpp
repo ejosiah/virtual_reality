@@ -25,6 +25,13 @@ namespace vr {
         std::vector<XrSwapchainImageVulkanKHR> images;
     };
 
+    struct CopyRequest {
+        Buffer source;
+        ImageId imageId;
+        uint32_t mipLevel{0};
+        uint32_t  arrayLayer{0};
+    };
+
     class VulkanGraphicsService : public GraphicsService {
     public:
         explicit VulkanGraphicsService(const Context &context);
@@ -105,7 +112,7 @@ namespace vr {
 
         VkImageView createImageView(VkImageViewCreateInfo createInfo);
 
-        void copyToImage(std::span<char> data);
+        void copyToImage(const CopyRequest& request);
 
     private:
         void pickDevice();

@@ -215,6 +215,48 @@ namespace vr {
         return view;
     }
 
+    void VulkanGraphicsService::copyToImage(const CopyRequest &request) {
+        const auto& swapChain = getSwapChain(request.imageId.swapChain);
+        auto image = swapChain.images[request.imageId.imageIndex].image;
+
+        scoped([&](VkCommandBuffer commandBuffer) {
+            auto barrier = makeStruct<VkImageMemoryBarrier>();
+            barrier.srcAccessMask = VK_ACCESS_NONE;
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barrier.image = image;
+            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            barrier.subresourceRange.baseMipLevel = request.mipLevel;
+            barrier.subresourceRange.levelCount = 1;
+            barrier.subresourceRange.baseArrayLayer = request.arrayLayer;
+            barrier.subresourceRange.layerCount = 1;
+
+            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0,
+                                 nullptr, 0, nullptr, 1, &barrier);
+
+            VkBufferImageCopy region{0, 0, 0};
+            region.imageOffset = {0, 0, 0};
+            region.imageExtent = {swapChain.width, swapChain.height, 1};
+            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.imageSubresource.mipLevel = request.mipLevel;
+            region.imageSubresource.baseArrayLayer = request.arrayLayer;
+            region.imageSubresource.layerCount = 1;
+            vkCmdCopyBufferToImage(commandBuffer, request.source.handle, image,
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_NONE;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                 VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0,
+                                 nullptr, 0, nullptr, 1, &barrier);
+        });
+    }
+
 }
 
 
