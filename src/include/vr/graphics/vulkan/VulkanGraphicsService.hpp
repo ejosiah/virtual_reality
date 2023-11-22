@@ -140,7 +140,7 @@ namespace vr {
 
 
     private:
-        XrGraphicsBindingVulkanKHR m_bindingInfo{makeStruct<XrGraphicsBindingVulkanKHR>()};
+        XrGraphicsBindingVulkanKHR m_bindingInfo{ XR_TYPE_GRAPHICS_BINDING_VULKAN2_KHR };
         VkPhysicalDevice m_physicalDevice{VK_NULL_HANDLE};
         VkDevice m_device{VK_NULL_HANDLE};
         VkQueue m_graphicsQueue{VK_NULL_HANDLE};

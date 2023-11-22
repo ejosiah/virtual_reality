@@ -13,7 +13,13 @@ set(LIB_DEPENDENCIES
 
 include_directories(${CMAKE_CURRENT_LIST_DIR}/include)
 
-add_definitions(-DXR_USE_GRAPHICS_API_VULKAN -DVK_DEBUG)
+add_definitions(
+        -DXR_USE_GRAPHICS_API_VULKAN
+        -DVK_DEBUG
+        -DGLM_FORCE_RADIANS
+        -DGLFW_INCLUDE_VULKAN
+        -DGLM_FORCE_SWIZZLE
+)
 
 add_executable(vr_app main.cpp ${HEADER_FILES} ${SOURCE_FILES})
 target_link_libraries(vr_app ${LIB_DEPENDENCIES})
