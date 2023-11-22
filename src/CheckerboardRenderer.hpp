@@ -123,10 +123,13 @@ struct CheckerboardRenderer : public vr::VulkanRenderer {
 
 
     vr::FrameEnd paused(const vr::FrameInfo &frameInfo) override {
-        return m_frameEnd;
+        return render(frameInfo);
     }
 
     vr::FrameEnd render(const vr::FrameInfo &frameInfo) override {
+        for(auto& layer : m_frameEnd.layers) {
+            layer->space = frameInfo.cameraSpace;
+        }
         return m_frameEnd;
     }
 

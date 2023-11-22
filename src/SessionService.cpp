@@ -146,11 +146,6 @@ namespace vr {
                     frame = frameLoop({{swapchain.spec._name, imageIndex}, {viewState, std::move(views)},
                                        m_sessionService.m_mainViewSpace});
 
-                    // FIXME make spaces and views available to render
-                    for(auto layer : frame.layers) {
-                        layer->space = m_sessionService.m_mainViewSpace;
-                    }
-
                 }
                 xrReleaseSwapchainImage(swapchain.handle, nullptr);
             }
