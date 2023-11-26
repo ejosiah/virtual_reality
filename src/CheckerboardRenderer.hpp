@@ -91,13 +91,29 @@ struct CheckerboardRenderer : public vr::VulkanRenderer {
 
     vr::FrameEnd render(const vr::FrameInfo &frameInfo) override {
         for(auto& layer : m_frameEnd.layers) {
-            layer->space = frameInfo.cameraSpace;
+            layer->space = frameInfo.space;
         }
         return m_frameEnd;
     }
 
     static std::shared_ptr<vr::Renderer> shared() {
         return std::make_shared<CheckerboardRenderer>();
+    }
+
+    static vr::SessionConfig session() {
+        return  vr::SessionConfig{}.addSwapChain(
+                    vr::SwapchainSpecification()
+                        .name("Checkerboard")
+                        .usage()
+                            .colorAttachment()
+                        .format(VK_FORMAT_R8G8B8A8_SRGB)
+                        .arraySize(2)
+                        .width(2048)
+                        .height(2048));
+    }
+
+    vr::cstring name() override {
+        return "Checkerboard";
     }
 
 private:

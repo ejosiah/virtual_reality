@@ -8,6 +8,21 @@
 namespace geom {
 
     static const glm::vec4 GRAY{0.6, 0.6,0.6, 1};
+    constexpr uint32_t RESTART_PRIMITIVE = UINT32_MAX;
+
+    enum class Topology {
+        POINTS,
+        LINES,
+        LINE_STRIPS,
+        TRIANGLES,
+        TRIANGLE_FAN,
+        TRIANGLE_STRIPS,
+        LISTS_WITH_ADJACENCY,
+        LINE_STRIPS_WITH_ADJACENCY,
+        TRIANGLES_WITH_ADJACENCY,
+        TRIANGLE_STRIP_WITH_ADJACENCY,
+        PATCHES
+    };
     
     struct Vertex {
         glm::vec4 position;
@@ -21,11 +36,9 @@ namespace geom {
     struct Mesh {
         std::vector<Vertex> vertices;
         std::vector<uint32_t> indices;
-        VkPrimitiveTopology topology;
+        Topology topology;
     };
-
-    constexpr uint32_t RESTART_PRIMITIVE = UINT32_MAX;
-
+    
     /**
      * Generates vertices for cube
      * @param color cube color
@@ -114,6 +127,6 @@ namespace geom {
                      SurfaceFunction&& f,
                      const glm::vec4& color,
                      const glm::mat4& xform = glm::mat4(1),
-                     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
+                     Topology topology = Topology::TRIANGLE_STRIPS);
     
 }

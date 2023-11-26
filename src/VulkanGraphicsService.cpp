@@ -1,5 +1,6 @@
 #include "check.hpp"
 #include "vr/graphics/vulkan/VulkanGraphicsService.hpp"
+#include "io/FileReader.hpp"
 
 namespace vr {
 
@@ -13,7 +14,7 @@ namespace vr {
         pickDevice();
         setupQueues();
         createDevice();
-        createCommandPool();
+        createInternalCommandPool();
         initMemoryAllocator();
         initializeGraphicsBinding();
         logDevice();
@@ -76,7 +77,8 @@ namespace vr {
         vkGetDeviceQueue(m_device, m_graphicsFamilyIndex, 0, &m_graphicsQueue);
     }
 
-    void VulkanGraphicsService::createCommandPool() {
+    void VulkanGraphicsService::createInternalCommandPool() {
+
         VkCommandPoolCreateInfo createInfo{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
         createInfo.queueFamilyIndex = m_graphicsFamilyIndex;
         createInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
@@ -85,17 +87,6 @@ namespace vr {
 
         createInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
         CHECK_VULKAN(vkCreateCommandPool(m_device, &createInfo, VK_NULL_HANDLE, &m_scopedCommandPool));
-    }
-
-    void VulkanGraphicsService::createCommandBuffers() {
-        assert(!m_swapChains.empty() && !m_swapChains.front().images.empty());
-        VkCommandBufferAllocateInfo allocateInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
-        allocateInfo.commandPool = m_commandPool;
-        allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocateInfo.commandBufferCount = m_swapChains.front().images.size();
-
-        m_commandBuffers.resize(allocateInfo.commandBufferCount);
-        CHECK_VULKAN(vkAllocateCommandBuffers(m_device, &allocateInfo, m_commandBuffers.data()));
     }
 
     void VulkanGraphicsService::initMemoryAllocator() {
@@ -150,7 +141,9 @@ namespace vr {
         createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-       return allocator.allocate(createInfo, VMA_MEMORY_USAGE_CPU_ONLY);
+        auto buffer = allocator.allocate(createInfo, VMA_MEMORY_USAGE_CPU_ONLY);
+        m_buffers.push_back(buffer);
+        return buffer;
     }
 
     Buffer VulkanGraphicsService::createDeviceLocalBuffer(VkDeviceSize size, VkBufferUsageFlags usage) {
@@ -159,7 +152,9 @@ namespace vr {
         createInfo.usage = usage;
         createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-        return allocator.allocate(createInfo, VMA_MEMORY_USAGE_GPU_ONLY);
+        auto buffer =  allocator.allocate(createInfo, VMA_MEMORY_USAGE_GPU_ONLY);
+        m_buffers.push_back(buffer);
+        return buffer;
     }
 
     Buffer VulkanGraphicsService::createMappableBuffer(VkDeviceSize size, VkBufferUsageFlags usage) {
@@ -168,10 +163,20 @@ namespace vr {
         createInfo.usage = usage;
         createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-        return allocator.allocate(createInfo, VMA_MEMORY_USAGE_CPU_TO_GPU);
+        auto buffer = allocator.allocate(createInfo, VMA_MEMORY_USAGE_CPU_TO_GPU);
+        m_buffers.push_back(buffer);
+        return buffer;
     }
 
     void VulkanGraphicsService::release(Buffer buffer) {
+        if(buffer.mapping != nullptr) {
+            unmap(buffer);
+        }
+        auto itr = std::find_if(m_buffers.begin(), m_buffers.end(), [&buffer](const auto& buf) {
+            return buf.handle == buffer.handle;
+        });
+        assert(itr != m_buffers.end());
+        m_buffers.erase(itr);
         allocator.deallocate(buffer);
     }
 
@@ -197,7 +202,6 @@ namespace vr {
             LOG_ERROR(m_context.instance, result);
             m_swapChains.push_back(vulkanSwapChain);
         }
-        createCommandBuffers();
     }
 
     const VulkanSwapChain &VulkanGraphicsService::getSwapChain(const std::string &name) {
@@ -255,6 +259,149 @@ namespace vr {
                                  VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0,
                                  nullptr, 0, nullptr, 1, &barrier);
         });
+    }
+
+    VkDescriptorPool VulkanGraphicsService::createDescriptorPool(const VkDescriptorPoolCreateInfo &createInfo) {
+        VkDescriptorPool pool;
+        CHECK_VULKAN(vkCreateDescriptorPool(m_device, &createInfo, nullptr, &pool));
+        return pool;
+    }
+
+    VkDescriptorSetLayout VulkanGraphicsService::createDescriptorSetLayout(VkDescriptorSetLayoutCreateInfo createInfo) {
+        VkDescriptorSetLayout setLayout;
+        CHECK_VULKAN(vkCreateDescriptorSetLayout(m_device, &createInfo, nullptr, &setLayout));
+        return setLayout;
+    }
+
+    void VulkanGraphicsService::copy(const Buffer &src, const Buffer &dst, VkDeviceSize size, VkDeviceSize srcOffset, VkDeviceSize dstOffset) {
+        scoped([&](auto commandBuffer){
+           VkBufferCopy region{srcOffset, dstOffset, size};
+            vkCmdCopyBuffer(commandBuffer, src.handle, dst.handle, 1, &region);
+        });
+    }
+
+    std::vector<VkDescriptorSet> VulkanGraphicsService::allocate(VkDescriptorPool pool, VkDescriptorSetLayout layout, uint32_t numSets) {
+        std::vector<VkDescriptorSet> sets(numSets);
+        std::vector<VkDescriptorSetLayout> layouts(numSets, layout);
+        auto allocInfo = makeStruct<VkDescriptorSetAllocateInfo>();
+        allocInfo.descriptorPool = pool;
+        allocInfo.descriptorSetCount = numSets;
+        allocInfo.pSetLayouts = layouts.data();
+
+        CHECK_VULKAN(vkAllocateDescriptorSets(m_device, &allocInfo, sets.data()));
+        return sets;
+    }
+
+    void VulkanGraphicsService::update(std::span<VkWriteDescriptorSet> writes) {
+        vkUpdateDescriptorSets(m_device, writes.size(), writes.data(), 0, nullptr);
+    }
+
+    void VulkanGraphicsService::shutdown() {
+        for(const auto& buffer : m_buffers) {
+            allocator.deallocate(buffer);
+        }
+        for(auto pipeline : m_pipelines){
+            vkDestroyPipeline(m_device, pipeline, nullptr);
+        }
+        for(auto layout : m_pipelineLayouts) {
+            vkDestroyPipelineLayout(m_device, layout, nullptr);
+        }
+        for(auto pool : m_descriptorPools) {
+            vkDestroyDescriptorPool(m_device, pool, nullptr);
+        }
+        for(auto setLayout : m_descriptorSetLayouts) {
+            vkDestroyDescriptorSetLayout(m_device, setLayout, nullptr);
+        }
+
+        vkDestroyCommandPool(m_device, m_commandPool, nullptr);
+        vkDestroyCommandPool(m_device, m_scopedCommandPool, nullptr);
+        for(auto commandPool : m_commandPools) {
+            vkDestroyCommandPool(m_device, commandPool, nullptr);
+        }
+        allocator.destroy();
+    }
+
+
+    void VulkanGraphicsService::initGuard() const {
+        if(!initialized){
+            throw std::runtime_error{"init has not yet been called on GraphicsService"};
+        }
+    }
+
+    std::span<VkCommandBuffer> VulkanGraphicsService::allocateCommandBuffers(uint32_t size) {
+        VkCommandBufferAllocateInfo allocateInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
+        allocateInfo.commandPool = m_commandPool;
+        allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocateInfo.commandBufferCount = size;
+
+        m_commandBuffers.resize(allocateInfo.commandBufferCount);
+
+        std::span<VkCommandBuffer> commandBuffers = { m_commandBuffers.data()  +  numCommandBuffers, size };
+        CHECK_VULKAN(vkAllocateCommandBuffers(m_device, &allocateInfo, m_commandBuffers.data()));
+        numCommandBuffers += size;
+        return commandBuffers;
+    }
+
+    VkPipelineLayout VulkanGraphicsService::createPipelineLayout(const VkPipelineLayoutCreateInfo &createInfo) {
+        VkPipelineLayout layout;
+        CHECK_VULKAN(vkCreatePipelineLayout(m_device, &createInfo, nullptr, &layout));
+        m_pipelineLayouts.push_back(layout);
+        return layout;
+    }
+
+    VkPipeline VulkanGraphicsService::createGraphicsPipeline(const VkGraphicsPipelineCreateInfo &createInfo) {
+        VkPipeline pipeline;
+        CHECK_VULKAN(vkCreateGraphicsPipelines(m_device, nullptr, 1, &createInfo, nullptr, &pipeline));
+        m_pipelines.push_back(pipeline);
+        return pipeline;
+    }
+
+    VkRenderPass VulkanGraphicsService::createRenderPass(const VkRenderPassCreateInfo &createInfo) {
+        VkRenderPass renderPass;
+        CHECK_VULKAN(vkCreateRenderPass(m_device, &createInfo, nullptr, &renderPass));
+        m_renderPasses.push_back(renderPass);
+        return renderPass;
+    }
+
+    std::vector<VkFramebuffer>
+    VulkanGraphicsService::createFrameBuffers(const std::vector<VkFramebufferCreateInfo> &createInfos) {
+        const auto size = createInfos.size();
+        std::vector<VkFramebuffer> frameBuffers(size);
+        for(auto i = 0u; i < size; ++i){
+            CHECK_VULKAN(vkCreateFramebuffer(m_device, &createInfos[i], nullptr, &frameBuffers[i]));
+            m_frameBuffers.push_back(frameBuffers[i]);
+        }
+        return frameBuffers;
+    }
+
+    Image VulkanGraphicsService::creatImage(const VkImageCreateInfo &createInfo) {
+        auto image = allocator.allocate(createInfo);
+        m_images.push_back(image);
+        return image;
+    }
+
+    VkShaderModule VulkanGraphicsService::createShaderModule(const std::filesystem::path &path) {
+        io::FileReader fileReader{path};
+        auto code = fileReader.readFully<uint32_t>();
+
+        auto createInfo = makeStruct<VkShaderModuleCreateInfo>();
+        createInfo.codeSize = fileReader.size();
+        createInfo.pCode = code.data();
+
+        VkShaderModule shaderModule;
+        CHECK_VULKAN(vkCreateShaderModule(m_device, &createInfo, nullptr, &shaderModule));
+        return shaderModule;
+    }
+
+    void VulkanGraphicsService::submitToGraphicsQueue(const VkSubmitInfo &submitInfo) {
+        CHECK_VULKAN(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, nullptr));
+        vkQueueWaitIdle(m_graphicsQueue);
+    }
+
+    VkFramebuffer VulkanGraphicsService::createFrameBuffer(const VkFramebufferCreateInfo &createInfo) {
+        VkFramebuffer framebuffer;
+        CHECK_VULKAN(vkCreateFramebuffer(m_device, &createInfo, nullptr, &framebuffer));
+        return framebuffer;
     }
 
 }

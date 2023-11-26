@@ -81,6 +81,7 @@ struct ClearScreen : public vr::VulkanRenderer {
             view.subImage.imageArrayIndex = 0;
         }
         layer.viewCount = 2;
+        layer.space = frameInfo.space;
         layer.views = layerViews.data();
 
         vr::FrameEnd frameEnd{};
@@ -91,6 +92,24 @@ struct ClearScreen : public vr::VulkanRenderer {
     static std::shared_ptr<vr::Renderer> shared() {
         return std::make_shared<ClearScreen>();
     }
+
+    static vr::SessionConfig session() {
+        return
+                vr::SessionConfig()
+                    .addSwapChain(
+                        vr::SwapchainSpecification()
+                            .name("main")
+                            .usage()
+                                .colorAttachment()
+                            .format(VK_FORMAT_R8G8B8A8_SRGB)
+                            .width(2064)
+                            .height(2096));
+    }
+
+    vr::cstring name() override {
+        return "Clear screen";
+    }
+
 
 private:
     std::vector<VkImageView> imageViews;

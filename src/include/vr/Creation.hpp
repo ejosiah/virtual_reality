@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Types.hpp"
 #include "forwards.hpp"
 
 #include <vulkan/vulkan.h>
@@ -7,6 +8,7 @@
 #include <vector>
 #include <memory>
 #include <optional>
+#include <string>
 
 namespace vr {
 
@@ -14,21 +16,21 @@ namespace vr {
 
         virtual ~GraphicsContextCreation() = default;
 
-        [[nodiscard]] virtual const char* extension() const = 0;
+        [[nodiscard]] virtual cstring extension() const = 0;
 
         [[nodiscard]]
         virtual std::shared_ptr<GraphicsContext> create(const Context& context) const = 0;
     };
 
     struct VulkanContextCreation : GraphicsContextCreation {
-        std::vector<const char*> layers{};
+        std::vector<cstring> layers{};
         std::string _appName{};
         uint32_t _appVersion{0};
         std::string _engineName{};
         uint32_t _engineVersion{0};
         uint32_t _apiVersion{VK_API_VERSION_1_3};
         VkFormat _format{VK_FORMAT_UNDEFINED};
-        std::vector<const char*> extensions {
+        std::vector<cstring> extensions {
 #ifndef NDEBUG
 #ifdef VK_DEBUG
                 VK_EXT_DEBUG_UTILS_EXTENSION_NAME
@@ -39,23 +41,23 @@ namespace vr {
         ~VulkanContextCreation() override = default;
 
         [[nodiscard]]
-        const char* extension() const final  {
+        cstring extension() const final  {
             return XR_KHR_VULKAN_ENABLE2_EXTENSION_NAME;
         }
 
         [[maybe_unused]]
-        VulkanContextCreation& addExtension(const char* ext) {
+        VulkanContextCreation& addExtension(cstring ext) {
             extensions.push_back(ext);
             return *this;
         }
 
         [[maybe_unused]]
-        VulkanContextCreation& addLayer(const char* layer) {
+        VulkanContextCreation& addLayer(cstring layer) {
             layers.push_back(layer);
             return *this;
         }
 
-        VulkanContextCreation& appName(const char*  name) {
+        VulkanContextCreation& appName(cstring  name) {
             _appName = name;
             return *this;
         }
@@ -65,7 +67,7 @@ namespace vr {
             return *this;
         }
 
-        VulkanContextCreation& engine(const char*  name) {
+        VulkanContextCreation& engine(cstring  name) {
             _engineName = name;
             return *this;
         }
@@ -101,7 +103,7 @@ namespace vr {
         XrVersion _apiVersion{XR_CURRENT_API_VERSION};
         mutable std::unique_ptr<GraphicsContextCreation> graphicsContextCreation;
         XrFormFactor _formFactor{XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY};
-        std::vector<const char*> extensions{
+        std::vector<cstring> extensions{
 #ifndef NDEBUG
 #ifdef XR_DEBUG
         XR_EXT_DEBUG_UTILS_EXTENSION_NAME
@@ -110,12 +112,12 @@ namespace vr {
         };
 
         [[maybe_unused]]
-        ContextCreation& addExtension(const char*  extension) {
+        ContextCreation& addExtension(cstring  extension) {
             extensions.push_back(extension);
             return *this;
         }
 
-        ContextCreation& appName(const char*  name) {
+        ContextCreation& appName(cstring  name) {
             _appName = name;
             return *this;
         }
@@ -131,7 +133,7 @@ namespace vr {
             return *this;
         }
 
-        const char* graphicsExtension() const {
+        cstring graphicsExtension() const {
             return graphicsContextCreation->extension();
         }
 

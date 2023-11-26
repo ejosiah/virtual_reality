@@ -4,3 +4,15 @@
 [submodule "dependencies/glm"]
 	path = dependencies/glm
 	url = https://github.com/g-truc/glm.git
+[submodule "dependencies/mp-units"]
+	path = dependencies/mp-units
+	url = https://github.com/mpusz/mp-units.git
+[submodule "dependencies/gsl-lite"]
+	path = dependencies/gsl-lite
+	url = https://github.com/gsl-lite/gsl-lite.git
+[submodule "dependencies/fmt"]
+	path = dependencies/fmt
+	url = https://github.com/fmtlib/fmt.git
+[submodule "dependencies/VulkanMemoryAllocator"]
+	path = dependencies/VulkanMemoryAllocator
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git

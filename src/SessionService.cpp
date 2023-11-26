@@ -31,17 +31,35 @@ namespace vr {
         m_states[XR_SESSION_STATE_EXITING] = std::make_unique<SessionExiting>(*this);
     }
 
-    void SessionService::create() {
+    void SessionService::init() {
         m_config.validate(m_ctx);
+        createSession();
+        createReferenceSpaces();
+        createSwapChain();
+        createMainViewSpace();
+        initRenderer();
+        m_currentState = XR_SESSION_STATE_UNKNOWN;
+    }
+
+    void SessionService::createSession() {
         auto createInfo = makeStruct<XrSessionCreateInfo>();
         const auto& graphicsBinding = m_graphics->graphicsBinding();
         createInfo.systemId = m_ctx.systemId;
         createInfo.next = &graphicsBinding;
         LOG_ERROR(m_ctx.instance, xrCreateSession(m_ctx.instance, &createInfo, &m_session))
-        createSwapChain();
-        createMainViewSpace();
-        m_renderer->init();
-        m_currentState = XR_SESSION_STATE_UNKNOWN;
+    }
+
+    void SessionService::createReferenceSpaces() {
+        for(const auto& spec : m_config._spaces) {
+            auto createInfo = makeStruct<XrReferenceSpaceCreateInfo>();
+            createInfo.referenceSpaceType = spec._referenceSpaceType;
+            createInfo.poseInReferenceSpace = convert(spec._poseInReferenceSpace);
+
+            XrSpace space;
+            CHECK_XR(xrCreateReferenceSpace(m_session, &createInfo, &space));
+
+            m_spaces.insert(std::make_pair(spec._name, space));
+        }
     }
     
     void SessionService::createMainViewSpace() {
@@ -50,6 +68,10 @@ namespace vr {
         createInfo.poseInReferenceSpace.position = {0, 0, 0};
         createInfo.poseInReferenceSpace.orientation = {0, 0, 0, 1};
         LOG_ERROR(m_ctx.instance, xrCreateReferenceSpace(m_session, &createInfo, &m_mainViewSpace))
+    }
+
+    void SessionService::initRenderer() {
+        m_renderer->init();
     }
 
     void SessionService::handle(const XrEventDataBuffer &event) {
@@ -118,6 +140,7 @@ namespace vr {
         const auto session = m_sessionService.m_session;
         const auto swapchain = m_sessionService.m_swapchains.front();
 
+
         static auto frameState = makeStruct<XrFrameState>();
         xrWaitFrame(session, XR_NULL_HANDLE, &frameState);
 
@@ -132,6 +155,7 @@ namespace vr {
 
                 if (XR_UNQUALIFIED_SUCCESS(xrWaitSwapchainImage(swapchain.handle, &waitInfo))) {
 
+                    // Get view info
                     auto viewState = makeStruct<XrViewState>();
                     auto viewLocateInfo = makeStruct<XrViewLocateInfo>();
                     viewLocateInfo.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
@@ -143,8 +167,24 @@ namespace vr {
                     LOG_ERROR(m_sessionService.m_ctx.instance, xrLocateViews(session, &viewLocateInfo, &viewState, numViews, &numViews, views.data())) ;
                     ViewInfo viewInfo{viewState, views};
 
-                    frame = frameLoop({{swapchain.spec._name, imageIndex}, {viewState, std::move(views)},
-                                       m_sessionService.m_mainViewSpace});
+                    // get space locations
+                    std::vector<SpaceLocation> spaceLocations;
+                    spaceLocations.reserve(m_sessionService.m_spaces.size());
+                    for(const auto& [name, space] : m_sessionService.m_spaces) {
+                        auto location = makeStruct<XrSpaceLocation>();
+                        xrLocateSpace(space, m_sessionService.m_mainViewSpace, frameState.predictedDisplayTime, &location);
+                        spaceLocations.push_back({name, convert(location.pose)});
+                    }
+                    if(!spaceLocations.empty()) {
+                        m_sessionService.m_renderer->set(spaceLocations);
+                    }
+
+                    frame = frameLoop({{swapchain.spec._name, imageIndex}
+                                        , {viewState, std::move(views)}
+                                        , m_sessionService.m_mainViewSpace
+                                        , frameState.predictedDisplayTime
+                                        , frameState.predictedDisplayPeriod
+                                        , static_cast<float>(swapchain.spec._width)/static_cast<float>(swapchain.spec._height)});
 
                 }
                 xrReleaseSwapchainImage(swapchain.handle, nullptr);

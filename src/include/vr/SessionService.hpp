@@ -32,11 +32,7 @@ namespace vr {
                 , std::shared_ptr<GraphicsService> graphics
                 , std::shared_ptr<Renderer> renderer);
 
-        void create();
-
-        void createSwapChain();
-
-        void createMainViewSpace();
+        void init();
 
         void handle(const XrEventDataBuffer &event);
         
@@ -56,6 +52,16 @@ namespace vr {
 
         
     private:
+        void createSession();
+
+        void createReferenceSpaces();
+
+        void createSwapChain();
+
+        void createMainViewSpace();
+
+        void initRenderer();
+
         void transitionTo(XrSessionState state);
 
     private:
@@ -67,8 +73,9 @@ namespace vr {
         std::vector<SwapChain> m_swapchains;
         XrSessionState m_currentState{XR_SESSION_STATE_UNKNOWN};
         std::unordered_map<XrSessionState, std::unique_ptr<SessionState>> m_states;
-        std::vector<XrView> views;
+        std::vector<XrView> m_views;
         XrSpace m_mainViewSpace{};
+        std::map<std::string, XrSpace> m_spaces;
     };
 
     class SessionState {

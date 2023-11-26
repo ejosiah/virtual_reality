@@ -1,4 +1,7 @@
 add_subdirectory(openxr_ext_loader)
-add_subdirectory(spdlog)
 add_subdirectory(glm)
 add_subdirectory(VulkanMemoryAllocator)
+add_subdirectory(fmt)
+add_subdirectory(spdlog)
+add_subdirectory(gsl-lite)
+add_subdirectory(mp-units/src)

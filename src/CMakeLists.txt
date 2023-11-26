@@ -9,7 +9,8 @@ set(LIB_DEPENDENCIES
         spdlog
         OpenXR::openxr_loader
         Vulkan::Vulkan
-        VulkanMemoryAllocator)
+        VulkanMemoryAllocator
+        mp-units)
 
 include_directories(${CMAKE_CURRENT_LIST_DIR}/include)
 

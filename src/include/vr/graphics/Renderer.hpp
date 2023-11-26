@@ -1,11 +1,11 @@
 #pragma once
 
+#include "Types.hpp"
 #include "vr/Models.hpp"
 #include "Graphics.hpp"
 
 #include <utility>
 #include <memory>
-
 
 namespace vr {
 
@@ -18,7 +18,13 @@ namespace vr {
             m_graphics = std::move(graphics);
         }
 
+        virtual void set(const std::vector<SpaceLocation>& spaceLocations) {
+
+        }
+
         virtual void init() {}
+
+        virtual cstring name() { return ""; }
 
         virtual FrameEnd paused(const FrameInfo &frameInfo) = 0;
 

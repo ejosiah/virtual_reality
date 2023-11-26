@@ -40,7 +40,7 @@ namespace vr {
             m_renderer->set(*context, graphicsService);
 
             SessionService session{ *context, m_sessionConfig, graphicsService, m_renderer };
-            session.create();
+            session.init();
 
             auto event = makeStruct<XrEventDataBuffer>();
             while(session.isRunning()) {

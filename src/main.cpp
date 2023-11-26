@@ -6,40 +6,32 @@
 #include "vr/specification/Specifications.hpp"
 #include "CheckerboardRenderer.hpp"
 #include "ClearScreen.hpp"
+#include "SpaceVisiualization.hpp"
 
 #include <vulkan/vulkan.h>
 
 int main() {
     spdlog::set_level(spdlog::level::debug);
+
+    auto renderer = ClearScreen::shared();
     auto creation = vr::ContextCreation::vulkan();
 
     creation
-        .appName("OpenXR test")
+        .appName(renderer->name())
         .formFactor(XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY)
             .graphics<vr::VulkanContextCreation>()
-                .appName("OpenXR test")
+                .appName(renderer->name())
                 .swapChainImageFormat(VK_FORMAT_R8G8B8A8_SRGB)
                 .apiVersion(VK_API_VERSION_1_3)
                 .addLayer("VK_LAYER_KHRONOS_validation");
 
 
-    vr::SessionConfig sessionConfig{};
-
-    sessionConfig.addSwapChain(
-        vr::SwapchainSpecification()
-            .name("Checkerboard")
-            .usage()
-                .colorAttachment()
-            .format(VK_FORMAT_R8G8B8A8_SRGB)
-            .arraySize(2)
-            .width(2048)
-            .height(2048));
-
+    vr::SessionConfig sessionConfig = ClearScreen::session();
 
     vr::Application application{
         creation
         , sessionConfig
-        , CheckerboardRenderer::shared()
+        , renderer
         , vr::VulkanGraphicsService::shared };
 
     try {

@@ -61,7 +61,7 @@ namespace geom {
     }
 
     Mesh sphere(int rows, int columns, float radius, glm::mat4 xform, const glm::vec4 &color,
-                                VkPrimitiveTopology topology) {
+                                Topology topology) {
         const auto p = columns;
         const auto q = rows;
         const auto r = radius;
@@ -85,8 +85,7 @@ namespace geom {
         return surface(p, q, f, color, xform, topology);
     }
 
-    Mesh
-    hemisphere(int rows, int columns, float radius, const glm::vec4 &color, VkPrimitiveTopology topology) {
+    Mesh hemisphere(int rows, int columns, float radius, const glm::vec4 &color, Topology topology) {
         auto p = columns;
         auto q = rows;
 
@@ -110,7 +109,7 @@ namespace geom {
     }
 
     Mesh cone(int rows, int columns, float radius, float height, const glm::vec4 &color,
-                              VkPrimitiveTopology topology) {
+                              Topology topology) {
         const auto p = columns;
         const auto q = rows;
         const auto h = height;
@@ -135,7 +134,7 @@ namespace geom {
     }
 
     Mesh cylinder(int rows, int columns, float radius, float height, const glm::vec4 &color,
-                                  VkPrimitiveTopology topology) {
+                                  Topology topology) {
         const auto p = columns;
         const auto q = rows;
         const auto h = height;
@@ -159,7 +158,7 @@ namespace geom {
     }
 
     Mesh torus(int rows, int columns, float innerRadius, float outerRadius, glm::mat4 xform,
-                               const glm::vec4 &color, VkPrimitiveTopology topology) {
+                               const glm::vec4 &color, Topology topology) {
         auto p = columns;
         auto q = rows;
         auto R = innerRadius;
@@ -187,7 +186,7 @@ namespace geom {
 
     Mesh
     plane(int rows, int columns, float width, float height, const glm::mat4 &xform, const glm::vec4 &color,
-                      VkPrimitiveTopology topology) {
+                      Topology topology) {
 
         const auto p = columns;
         const auto q = rows;
@@ -217,7 +216,7 @@ namespace geom {
 
     template<typename SurfaceFunction>
     Mesh surface(int p, int q, SurfaceFunction &&f, const glm::vec4 &color, const glm::mat4 &xform,
-                                 VkPrimitiveTopology topology) {
+                                 Topology topology) {
         Mesh vertices;
         vertices.topology = topology;
         auto nXform = glm::inverseTranspose(glm::mat3(xform));
@@ -234,7 +233,7 @@ namespace geom {
             }
         }
 
-        if (topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST) {
+        if (topology == Topology::TRIANGLES) {
             for (int j = 0; j < q; j++) {
                 for (int i = 0; i < p; i++) {
                     vertices.indices.push_back((j + 1) * (p + 1) + i);
@@ -261,11 +260,11 @@ namespace geom {
     }
 
     Mesh triangleStripToTriangleList(const Mesh &vertices) {
-        if (vertices.topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST) return vertices;
+        if (vertices.topology == Topology::TRIANGLES) return vertices;
 
         Mesh newMesh{};
         newMesh.vertices = vertices.vertices;
-        newMesh.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        newMesh.topology = Topology::TRIANGLES;
 
         if (vertices.indices.empty()) {
             assert(vertices.vertices.size() > 2);
@@ -367,28 +366,28 @@ namespace geom {
         auto w = 55.f;
 
         glm::mat4 xform = glm::translate(glm::mat4(1), {0, 0, -w * 0.5f});
-        auto backWall = plane(1, 1, w, w, xform, white, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+        auto backWall = plane(1, 1, w, w, xform, white, Topology::TRIANGLES);
 
 
         xform = glm::translate(glm::mat4(1), {0, -w * 0.5f, 0});
         xform = glm::rotate(xform, -glm::half_pi<float>(), {1, 0, 0});
-        auto floor = plane(1, 1, w, w, xform, white, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+        auto floor = plane(1, 1, w, w, xform, white, Topology::TRIANGLES);
 
         xform = glm::translate(glm::mat4(1), {0, w * 0.5f, 0});
         xform = glm::rotate(xform, glm::half_pi<float>(), {1, 0, 0});
-        auto ceiling = plane(1, 1, w, w, xform, white, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+        auto ceiling = plane(1, 1, w, w, xform, white, Topology::TRIANGLES);
 
         xform = glm::translate(glm::mat4(1), {-w * 0.5f, 0, 0});
         xform = glm::rotate(xform, glm::half_pi<float>(), {0, 1, 0});
-        auto rightWall = plane(1, 1, w, w, xform, red, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+        auto rightWall = plane(1, 1, w, w, xform, red, Topology::TRIANGLES);
 
         xform = glm::translate(glm::mat4(1), {w * 0.5f, 0, 0});
         xform = glm::rotate(xform, -glm::half_pi<float>(), {0, 1, 0});
-        auto leftWall = plane(1, 1, w, w, xform, green, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+        auto leftWall = plane(1, 1, w, w, xform, green, Topology::TRIANGLES);
 
         xform = glm::translate(glm::mat4(1), {0, w * 0.5f - 0.1, 0});
         xform = glm::rotate(xform, glm::half_pi<float>(), {1, 0, 0});
-        auto light = plane(1, 1, 13, 10.5, xform, glm::vec4(0), VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+        auto light = plane(1, 1, 13, 10.5, xform, glm::vec4(0), Topology::TRIANGLES);
 
 
         xform = glm::translate(glm::mat4(1), glm::vec3(10, (16.5 - w) * 0.5, 12));

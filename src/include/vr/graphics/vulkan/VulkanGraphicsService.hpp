@@ -13,8 +13,15 @@
 #include <sstream>
 #include <format>
 #include <span>
+#include <filesystem>
 
 namespace vr {
+
+    template<typename T>
+    struct Link {
+        T* cpu{};
+        Buffer gpu{};
+    };
 
     struct VulkanSwapChain{
         std::string name;
@@ -67,15 +74,13 @@ namespace vr {
 
         const VulkanSwapChain& getSwapChain(const std::string& name);
 
-        void shutdown() override {
-            allocator.destroy();
-        }
+        void shutdown() override;
 
         VkCommandBuffer commandBuffer(uint32_t imageIndex);
 
         static std::shared_ptr<GraphicsService> shared(const Context& context);
 
-        template<typename T>
+        template<typename T = void>
         T* map(Buffer& buffer) {
             vmaMapMemory(allocator.allocator, buffer.allocation, &buffer.mapping);
             return reinterpret_cast<T*>(buffer.mapping);
@@ -83,6 +88,7 @@ namespace vr {
 
         void unmap(Buffer& buffer) const {
             vmaUnmapMemory(allocator.allocator, buffer.allocation);
+            buffer.mapping = nullptr;
         }
 
         void scoped(auto&& operation) {
@@ -114,6 +120,47 @@ namespace vr {
 
         void copyToImage(const CopyRequest& request);
 
+        void copy(const Buffer& src, const Buffer& dst, VkDeviceSize size, VkDeviceSize offset = 0u, VkDeviceSize dstOffset = 0u);
+
+        template<typename T>
+        Link<T> link(VkBufferUsageFlagBits usage, uint32_t count = 1) {
+            Link<T> link{};
+            link.gpu = createMappableBuffer(sizeof(T) * count, usage);
+            link.cpu = map<T>(link.gpu);
+            return link;
+        }
+
+        template<typename T>
+        void unlink(Link<T> link) {
+            unmap(link.cpu);
+        }
+
+        VkDescriptorPool createDescriptorPool(const VkDescriptorPoolCreateInfo& createInfo);
+
+        VkDescriptorSetLayout createDescriptorSetLayout(VkDescriptorSetLayoutCreateInfo createInfo);
+
+        std::vector<VkDescriptorSet> allocate(VkDescriptorPool pool, VkDescriptorSetLayout layout, uint32_t numSets = 1);
+
+        void update(std::span<VkWriteDescriptorSet> writes);
+
+        std::span<VkCommandBuffer> allocateCommandBuffers(uint32_t size);
+
+        VkShaderModule createShaderModule(const std::filesystem::path &path);
+
+        VkPipelineLayout createPipelineLayout(const VkPipelineLayoutCreateInfo &createInfo);
+
+        VkPipeline createGraphicsPipeline(const VkGraphicsPipelineCreateInfo &createInfo);
+
+        VkRenderPass createRenderPass(const VkRenderPassCreateInfo &createInfo);
+
+        VkFramebuffer createFrameBuffer(const VkFramebufferCreateInfo &createInfos);
+
+        std::vector<VkFramebuffer> createFrameBuffers(const std::vector<VkFramebufferCreateInfo> &createInfos);
+
+        Image creatImage(const VkImageCreateInfo &createInfo);
+
+        void submitToGraphicsQueue(const VkSubmitInfo &submitInfo);
+
     private:
         void pickDevice();
 
@@ -121,9 +168,7 @@ namespace vr {
         
         void createDevice();
 
-        void createCommandPool();
-
-        void createCommandBuffers();
+        void createInternalCommandPool();
 
         void initMemoryAllocator();
 
@@ -132,12 +177,7 @@ namespace vr {
         void logDevice();
 
 
-        void initGuard() const {
-            if(!initialized){
-                throw std::runtime_error{"init has not yet been called on GraphicsService"};
-            }
-        }
-
+        void initGuard() const;
 
     private:
         XrGraphicsBindingVulkanKHR m_bindingInfo{ XR_TYPE_GRAPHICS_BINDING_VULKAN2_KHR };
@@ -149,8 +189,18 @@ namespace vr {
         VmaMemoryAllocator allocator;
         VkCommandPool m_commandPool;
         VkCommandPool m_scopedCommandPool;
+        static constexpr uint32_t MaxCommandBuffers{100};
         std::vector<VkCommandBuffer> m_commandBuffers;
+        uint32_t numCommandBuffers{};
         bool initialized{false};
         std::vector<Buffer> m_buffers;
+        std::vector<VkCommandPool> m_commandPools;
+        std::vector<VkDescriptorPool> m_descriptorPools;
+        std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;
+        std::vector<VkPipelineLayout> m_pipelineLayouts;
+        std::vector<VkPipeline> m_pipelines;
+        std::vector<VkRenderPass> m_renderPasses;
+        std::vector<VkFramebuffer> m_frameBuffers;
+        std::vector<Image> m_images;
     };
 }
