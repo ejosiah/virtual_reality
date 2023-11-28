@@ -12,11 +12,11 @@ namespace units {
     using kilobyte = kb;
     using kilobytes = kb;
 
-    using mb = std::ratio<2 << 20, 1>;
+    using mb = std::ratio<1 << 20, 1>;
     using megabyte = mb;
     using megabytes = mb;
 
-    using gb = std::ratio<2 << 30, 1>;
+    using gb = std::ratio<1 << 30, 1>;
     using gigabyte = gb;
     using gigabytes = gb;
 

@@ -30,6 +30,12 @@ struct CameraType {
     glm::mat4 projection;
 };
 
+struct Mvp{
+    glm::mat4 model{1};
+    glm::mat4 view{1};
+    glm::mat4 projection{1};
+};
+
 using Camera = vr::Link<CameraType>;
 using Transforms = vr::Link<glm::mat4>;
 
@@ -47,7 +53,7 @@ public:
         createDescriptorSetLayout();
         updateDescriptorSet();
         createPipeline();
-        createCommandBuffer();
+//        createCommandBuffer();
         setupViews();
     }
 
@@ -55,6 +61,8 @@ public:
         using namespace units;
         auto cube = geom::cube();
         auto staging = graphicsService().createStagingBuffer(1_mb);
+
+        debugBuffer = graphicsService().createMappableBuffer(1_kb, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
         auto size = BYTE_SIZE(cube.vertices);
         graphicsService().map(staging);
@@ -64,17 +72,17 @@ public:
 
         size = BYTE_SIZE(cube.indices);
         m_cube.index = graphicsService().createDeviceLocalBuffer(size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+        std::memcpy(staging.mapping, cube.indices.data(), size);
         graphicsService().copy(staging, m_cube.index, size);
         graphicsService().release(staging);
 
         m_instances.transforms = graphicsService().link<glm::mat4>(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, numInstances);
         m_instances.transforms.cpu[0] = glm::translate(glm::mat4(1), {0, 0, -2});
-
+        models.resize(numInstances);
     }
 
     void initCamera() {
         m_camera = graphicsService().link<CameraType>(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-        m_camera.cpu->projection;
     }
 
     void createRenderPass() {
@@ -210,16 +218,16 @@ public:
     }
 
     void createDescriptorSetLayout() {
-        std::array<VkDescriptorSetLayoutBinding, 2> bindings{};
+        std::array<VkDescriptorSetLayoutBinding, 1> bindings{};
         bindings[0].binding = 0;
-        bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         bindings[0].descriptorCount = 1;
         bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         
-        bindings[1].binding = 1;
-        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        bindings[1].descriptorCount = 1;
-        bindings[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+//        bindings[1].binding = 1;
+//        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+//        bindings[1].descriptorCount = 1;
+//        bindings[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         
         auto createInfo = makeStruct<VkDescriptorSetLayoutCreateInfo>();
         createInfo.flags = 0;
@@ -233,24 +241,23 @@ public:
 
     void updateDescriptorSet() {
         m_descriptorSet = graphicsService().allocate(m_pool, m_descriptorSetLayout).front();
-        std::array<VkWriteDescriptorSet, 2 > writes {
-                makeStruct<VkWriteDescriptorSet>(),
+        std::array<VkWriteDescriptorSet, 1 > writes {
                 makeStruct<VkWriteDescriptorSet>()
         };
         
+//        writes[0].dstSet = m_descriptorSet;
+//        writes[0].dstBinding = 0;
+//        writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+//        writes[0].descriptorCount = 1;
+//        VkDescriptorBufferInfo cameraInfo{ m_camera.gpu.handle, 0, VK_WHOLE_SIZE};
+//        writes[0].pBufferInfo = &cameraInfo;
+
         writes[0].dstSet = m_descriptorSet;
         writes[0].dstBinding = 0;
-        writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         writes[0].descriptorCount = 1;
-        VkDescriptorBufferInfo cameraInfo{ m_camera.gpu.handle, 0, VK_WHOLE_SIZE};
-        writes[0].pBufferInfo = &cameraInfo;
-
-        writes[1].dstSet = m_descriptorSet;
-        writes[1].dstBinding = 1;
-        writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        writes[1].descriptorCount = 1;
-        VkDescriptorBufferInfo xformInfo{ m_instances.transforms.gpu.handle, 0, VK_WHOLE_SIZE};
-        writes[1].pBufferInfo = &xformInfo;
+        VkDescriptorBufferInfo xformInfo{ debugBuffer.handle, 0, VK_WHOLE_SIZE};
+        writes[0].pBufferInfo = &xformInfo;
 
         graphicsService().update(writes);
 
@@ -316,7 +323,7 @@ public:
         rasterState.depthClampEnable = VK_FALSE;
         rasterState.polygonMode = VK_POLYGON_MODE_FILL;
         rasterState.cullMode = VK_CULL_MODE_BACK_BIT;
-        rasterState.frontFace = VK_FRONT_FACE_CLOCKWISE;
+        rasterState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         rasterState.lineWidth = 1.0f;
 
         // Multisample state
@@ -346,6 +353,9 @@ public:
         auto pipelineLayoutCreateInfo = makeStruct<VkPipelineLayoutCreateInfo>();
         pipelineLayoutCreateInfo.setLayoutCount = 1;
         pipelineLayoutCreateInfo.pSetLayouts = &m_descriptorSetLayout;
+        VkPushConstantRange constants{VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Mvp)};
+        pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+        pipelineLayoutCreateInfo.pPushConstantRanges = &constants;
 
 
         // pipeline layout
@@ -420,6 +430,8 @@ public:
         };
         m_views[0].subImage = subImage;
         m_views[1].subImage = subImage;
+        m_views[1].subImage.imageArrayIndex = 1;
+
 
         m_projectionLayer.viewCount = 2;
         m_projectionLayer.views = m_views.data();
@@ -431,6 +443,7 @@ public:
             auto spaceLocation = spaceLocations[i];
             spaceLocation.pose.scale = glm::vec3(0.25);
             m_instances.transforms.cpu[i] = vr::toMatrix(spaceLocation.pose);
+            models[i] = vr::toMatrix(spaceLocation.pose);
         }
     }
 
@@ -454,29 +467,85 @@ public:
 
     void renderCubes(const vr::FrameInfo &frameInfo) {
         const auto& view = frameInfo.viewInfo.views.front();
-        m_camera.cpu->view = glm::inverse(vr::toMatrix(view.pose));
-        m_camera.cpu->projection = graphicsService().projection(view.fov, 0.1, 100);
-        auto commandBuffer = m_commandBuffers[frameInfo.imageId.imageIndex];
+//        m_camera.cpu->view = glm::inverse(vr::toMatrix(view.pose));
+//        m_camera.cpu->projection = graphicsService().projection(view.fov, 0.1, 100);
+//        auto commandBuffer = m_commandBuffers[frameInfo.imageId.imageIndex];
+//
+//        auto submitInfo = makeStruct<VkSubmitInfo>();
+//        submitInfo.commandBufferCount = 1;
+//        submitInfo.pCommandBuffers = &commandBuffer;
+//        graphicsService().submitToGraphicsQueue(submitInfo);
 
-        auto submitInfo = makeStruct<VkSubmitInfo>();
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffer;
-        graphicsService().submitToGraphicsQueue(submitInfo);
+        const auto& swapChain = graphicsService().getSwapChain("main");
+        mvp.view = glm::inverse(vr::toMatrix(view.pose));
+        mvp.projection = graphicsService().projection(view.fov, 0.05, 100);
+
+        static int renders = 0;
+
+        graphicsService().scoped([&](auto commandBuffer) {
+            std::array<VkClearValue, 2> clearValues{};
+            clearValues[0].color = {0.184313729f, 0.309803933f, 0.309803933f, 1.f};
+            clearValues[1].depthStencil = {1.0, 0u};
+            auto renderPassInfo = makeStruct<VkRenderPassBeginInfo>();
+            renderPassInfo.renderPass = m_renderPass;
+            renderPassInfo.framebuffer = m_frameBuffers[frameInfo.imageId.imageIndex]._;
+            renderPassInfo.renderArea = {{0, 0}, {swapChain.width, swapChain.height}};
+            renderPassInfo.clearValueCount = 2;
+            renderPassInfo.pClearValues = clearValues.data();
+
+            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline._);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline.layout
+                    , 0, 1, &m_descriptorSet, 0, VK_NULL_HANDLE);
+
+            VkDeviceSize offset = 0;
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_cube.vertex.handle, &offset);
+            vkCmdBindIndexBuffer(commandBuffer, m_cube.index.handle, 0, VK_INDEX_TYPE_UINT32);
+            uint32_t indexCount = m_cube.index.info.size / sizeof(uint32_t);
+
+            for(auto i = 0; i < numInstances; i++){
+                mvp.model = models[i];
+                glm::mat4 lmvp = mvp.projection * mvp.view * mvp.model;
+                glm::vec4 wPos = mvp.model * glm::vec4(0, 0, 0, 1);
+                glm::vec4 vPos = mvp.view * wPos;
+                glm::vec4 cPos = lmvp * glm::vec4(0, 0, 0, 1);
+                cPos /= cPos.w;
+//                if(renders < 10) {
+//                    spdlog::error("\nworld pos [{}, {}, {}]\nview pos [{}, {}, {}]\nclip pos [{}, {}, {}]", wPos.x, wPos.y, wPos.z, vPos.x,
+//                                  vPos.y, vPos.z, cPos.x, cPos.y, cPos.z);
+//                }
+                renders++;
+                vkCmdPushConstants(commandBuffer, m_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mvp), &mvp.model);
+                vkCmdDrawIndexed(commandBuffer, indexCount, 1, 0, 0, 0);
+            }
+            vkCmdEndRenderPass(commandBuffer);
+        });
+
+        static bool once = true;
+        if(renders > 10 && once) {
+            once = false;
+            auto vertices = graphicsService().map<glm::vec4>(debugBuffer);
+            for(auto i = 0; i < 24; i++){
+                const auto& v = vertices[i];
+                spdlog::error("[{}, {}, {}, {}]", v.x, v.y, v.z, v.w);
+            }
+        }
     }
 
     static vr::SessionConfig session() {
         return
         vr::SessionConfig()
+            .addSpace(
+                    ReferenceSpaceSpecification()
+                            .name("ViewFront")
+                            .view()
+                            .pose()
+                            .translate(0, 0, -2)
+                            .orientation(1, 0, 0, 0)
+            )
             .addSpace(ReferenceSpaceSpecification().name("Local").local())
             .addSpace(ReferenceSpaceSpecification().name("Stage").stage())
-            .addSpace(
-                ReferenceSpaceSpecification()
-                    .name("ViewFront")
-                    .view()
-                    .pose()
-                        .translate(0, 0, -2)
-                        .orientation(1, 0, 0, 0)
-            )
             .addSpace(
                 ReferenceSpaceSpecification()
                     .name("StageLeft")
@@ -515,6 +584,7 @@ public:
                 .usage()
                     .colorAttachment()
                 .format(VK_FORMAT_R8G8B8A8_SRGB)
+                .arraySize(2)
                 .width(2064)
                 .height(2096));
     }
@@ -532,6 +602,8 @@ private:
         vr::Buffer vertex;
         vr::Buffer index;
     } m_cube;
+
+    vr::Buffer debugBuffer;
 
     struct {
         Transforms transforms;
@@ -555,4 +627,6 @@ private:
          {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW}
      }};
     static constexpr uint32_t numInstances{7};
+    std::vector<glm::mat4> models;
+    Mvp mvp{};
 };

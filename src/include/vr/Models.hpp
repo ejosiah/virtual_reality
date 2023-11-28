@@ -72,7 +72,7 @@ namespace vr {
         const auto& p = pose.position;
 
         return {
-                {o.w, o.x, o.y, o.z},
+                {o.x, o.y, o.z, o.w},
                 {p.x, p.y, p.z}
         };
     }
@@ -82,7 +82,7 @@ namespace vr {
         glm::mat4 translation = glm::translate(glm::mat4(1), pose.position);
         glm::mat4 scale = glm::scale(glm::mat4(1), pose.scale);
 
-        return scale * translation * rotation;
+        return  translation * rotation * scale;
     }
 
     inline glm::mat4 toMatrix(const XrPosef& pose) {
