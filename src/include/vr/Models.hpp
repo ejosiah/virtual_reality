@@ -88,5 +88,4 @@ namespace vr {
     inline glm::mat4 toMatrix(const XrPosef& pose) {
         return toMatrix(convert(pose));
     }
-
 }

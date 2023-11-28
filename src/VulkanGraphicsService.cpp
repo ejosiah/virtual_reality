@@ -14,8 +14,8 @@ namespace vr {
         pickDevice();
         setupQueues();
         createDevice();
-        createInternalCommandPool();
         initMemoryAllocator();
+        createInternalCommandPool();
         initializeGraphicsBinding();
         logDevice();
     }
@@ -51,7 +51,11 @@ namespace vr {
         queueCreateInfo.pQueuePriorities = &priority;
 
         std::vector<const char*> extensions{
-            VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME
+            VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
+
+#ifdef USE_MIRROR_WINDOW
+            VK_KHR_SWAPCHAIN_EXTENSION_NAME
+#endif
         };
 
         auto dynamicRenderingFeatures = makeStruct<VkPhysicalDeviceDynamicRenderingFeatures>();
@@ -127,10 +131,6 @@ namespace vr {
         return *reinterpret_cast<const XrBaseInStructure*>(&m_bindingInfo);
     }
 
-    int64_t VulkanGraphicsService::swapChainFormat() const {
-        return vulkanContext().swapChainImageFormat;
-    }
-
     VkQueue VulkanGraphicsService::queue() const {
         return m_graphicsQueue;
     }
@@ -193,7 +193,7 @@ namespace vr {
         XrResult result;
         for(auto swapchain : swapchains) {
             const auto spec = swapchain.spec;
-            VulkanSwapChain vulkanSwapChain{spec._name, swapchain.handle, spec._width
+            XrVulkanSwapChain vulkanSwapChain{spec._name, swapchain.handle, spec._width
                                             , spec._height, static_cast<VkFormat>(spec._format)};
             std::tie(result, vulkanSwapChain.images) =
                 enumerate<XrSwapchainImageVulkanKHR>([&](auto sizePtr, auto structPtr) {
@@ -204,7 +204,7 @@ namespace vr {
         }
     }
 
-    const VulkanSwapChain &VulkanGraphicsService::getSwapChain(const std::string &name) {
+    const XrVulkanSwapChain &VulkanGraphicsService::getSwapChain(const std::string &name) {
         auto itr = std::find_if(m_swapChains.begin(), m_swapChains.end(), [&name](const auto& sc){ return name == sc.name; });
         if(itr == m_swapChains.end()){
             THROW(std::format("swapChain[{}] not found", name));
@@ -215,7 +215,7 @@ namespace vr {
     VkImageView VulkanGraphicsService::createImageView(VkImageViewCreateInfo createInfo) {
         VkImageView view;
         vkCreateImageView(m_device, &createInfo, nullptr, &view);
-        
+        m_imageViews.push_back(view);
         return view;
     }
 
@@ -297,20 +297,26 @@ namespace vr {
     }
 
     void VulkanGraphicsService::shutdown() {
-        for(const auto& buffer : m_buffers) {
-            allocator.deallocate(buffer);
-        }
         for(auto pipeline : m_pipelines){
             vkDestroyPipeline(m_device, pipeline, nullptr);
         }
         for(auto layout : m_pipelineLayouts) {
             vkDestroyPipelineLayout(m_device, layout, nullptr);
         }
+
+        for(auto setLayout : m_descriptorSetLayouts) {
+            vkDestroyDescriptorSetLayout(m_device, setLayout, nullptr);
+        }
         for(auto pool : m_descriptorPools) {
             vkDestroyDescriptorPool(m_device, pool, nullptr);
         }
-        for(auto setLayout : m_descriptorSetLayouts) {
-            vkDestroyDescriptorSetLayout(m_device, setLayout, nullptr);
+
+        for(auto frameBuffer : m_frameBuffers) {
+            vkDestroyFramebuffer(m_device, frameBuffer, nullptr);
+        }
+
+        for(auto renderPass : m_renderPasses) {
+            vkDestroyRenderPass(m_device, renderPass, nullptr);
         }
 
         vkDestroyCommandPool(m_device, m_commandPool, nullptr);
@@ -318,7 +324,20 @@ namespace vr {
         for(auto commandPool : m_commandPools) {
             vkDestroyCommandPool(m_device, commandPool, nullptr);
         }
+
+        for(const auto& buffer : m_buffers) {
+            allocator.deallocate(buffer);
+        }
+
+        for(auto view : m_imageViews){
+            vkDestroyImageView(m_device, view, nullptr);
+        }
+        for(const auto& image : m_images) {
+            allocator.deallocate(image);
+        }
+
         allocator.destroy();
+        vkDestroyDevice(m_device, nullptr);
     }
 
 
@@ -404,6 +423,177 @@ namespace vr {
         return framebuffer;
     }
 
+    glm::mat4 VulkanGraphicsService::projection(const XrFovf &fov, float zNear, float zFar) {
+        glm::mat4 result{0};
+
+        const float tanAngleLeft = tanf(fov.angleLeft);
+        const float tanAngleRight = tanf(fov.angleRight);
+
+        const float tanAngleDown = tanf(fov.angleDown);
+        const float tanAngleUp = tanf(fov.angleUp);
+
+        const float tanAngleWidth = tanAngleRight - tanAngleLeft;
+        const float tanAngleHeight = tanAngleDown - tanAngleUp;
+
+        if(zFar < zNear) {
+            // place far plane at infinity
+            result[0][0] = 2.0f / tanAngleWidth;
+            result[2][0] = (tanAngleRight + tanAngleLeft) / tanAngleWidth;
+
+            result[1][1] = 2.0f / tanAngleHeight;
+            result[2][1] = (tanAngleUp + tanAngleDown) / tanAngleHeight;
+            
+            result[2][2] = -1.0f;
+            result[3][2] = -zNear;
+            
+            result[2][3] = -1.0f;
+        }else {
+            result[0][0] = 2.0f / tanAngleWidth;
+            result[2][0] = (tanAngleRight + tanAngleLeft) / tanAngleWidth;
+
+            result[1][1] = 2.0f / tanAngleHeight;
+            result[2][1] = (tanAngleUp + tanAngleDown) / tanAngleHeight;
+
+            result[2][2] = -zFar / (zFar - zNear);
+            result[3][2] = -(zFar * zNear) / (zFar - zNear);
+
+            result[2][3] = -1.0f;
+        }
+
+        return result;
+    }
+
+#ifdef USE_MIRROR_WINDOW
+    void VulkanGraphicsService::mirror(const ImageId &imageId) {
+        auto xrSwapchain = getSwapChain(imageId.swapChain);
+        uint32_t imageIndex;
+        vkAcquireNextImageKHR(m_device, m_mirrorSwapChain.swapchain, UINT64_MAX, m_transferStart, VK_NULL_HANDLE, &imageIndex);
+
+        scoped([&](auto commandBuffer) {
+            auto srcImage = xrSwapchain.images[imageId.imageIndex].image;
+            auto dstImage = m_mirrorSwapChain.images[imageIndex];
+
+            std::vector<VkImageMemoryBarrier> barriers(2, makeStruct<VkImageMemoryBarrier>());
+
+            barriers[0].srcAccessMask = VK_ACCESS_NONE;
+            barriers[0].dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            barriers[0].oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            barriers[0].newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            barriers[0].image = srcImage;
+            barriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            barriers[0].subresourceRange.baseMipLevel = 0;
+            barriers[0].subresourceRange.levelCount = 1;
+            barriers[0].subresourceRange.baseArrayLayer = 0;
+            barriers[0].subresourceRange.layerCount = 1;
+
+            barriers[1].srcAccessMask = VK_ACCESS_NONE;
+            barriers[1].dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barriers[1].oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            barriers[1].newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barriers[1].image = dstImage;
+            barriers[1].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            barriers[1].subresourceRange.baseMipLevel = 0;
+            barriers[1].subresourceRange.levelCount = 1;
+            barriers[1].subresourceRange.baseArrayLayer = 0;
+            barriers[1].subresourceRange.layerCount = 1;
+
+            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0,
+                                 nullptr, 0, nullptr, 2, barriers.data());
+
+            VkImageBlit region{};
+            region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.srcSubresource.mipLevel = 0;
+            region.srcSubresource.baseArrayLayer = 0;
+            region.srcSubresource.layerCount = 1;
+            region.srcOffsets[0] = {0, 0, 0};
+            region.srcOffsets[1] = {static_cast<int32_t>(xrSwapchain.width), static_cast<int32_t>(xrSwapchain.height), 1};
+
+            region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.dstSubresource.mipLevel = 0;
+            region.dstSubresource.baseArrayLayer = 0;
+            region.dstSubresource.layerCount = 1;
+            region.dstOffsets[0] = {0, 0, 0};
+            region.dstOffsets[1] = {
+                    static_cast<int32_t>(m_mirrorSwapChain.info.imageExtent.width)
+                  , static_cast<int32_t>(m_mirrorSwapChain.info.imageExtent.height), 1};
+
+            vkCmdBlitImage(commandBuffer, srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region, VK_FILTER_LINEAR);
+
+            barriers[0].srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            barriers[0].dstAccessMask = VK_ACCESS_NONE;
+            barriers[0].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            barriers[0].newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+            barriers[1].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barriers[1].dstAccessMask = VK_ACCESS_NONE;
+            barriers[1].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barriers[1].newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                 VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0,
+                                 nullptr, 0, nullptr, 2, barriers.data());
+            
+        }, { {m_transferStart, VK_PIPELINE_STAGE_TRANSFER_BIT}}, { m_transferComplete });
+
+        m_mirrorSwapChain.present(imageIndex, { m_transferComplete });
+    }
+
+    void VulkanGraphicsService::initMirrorWindow() {
+        auto  createInfo = makeStruct<VkSemaphoreCreateInfo>();
+        CHECK_VULKAN(vkCreateSemaphore(m_device, &createInfo, nullptr, &m_transferStart));
+        CHECK_VULKAN(vkCreateSemaphore(m_device, &createInfo, nullptr, &m_transferComplete));
+        const auto& xrSwapChain = m_swapChains.front();
+        m_window = WindowingSystem::createWindow(context().info.applicationInfo.applicationName, xrSwapChain.width / 2, xrSwapChain.height / 2);
+        m_mirrorSwapChain = MirrorSwapChain{ .pDevice = m_physicalDevice, .device = m_device };
+        m_mirrorSwapChain.createSurface(m_window, vulkanContext().instance);
+        m_mirrorSwapChain.setPresentQueueFamilyIndex(m_graphicsFamilyIndex);
+        m_mirrorSwapChain.createSwapChain(xrSwapChain);
+
+        const auto numImages = m_mirrorSwapChain.images.size();
+        std::vector<VkImageLayout> oldLayouts(numImages, VK_IMAGE_LAYOUT_UNDEFINED);
+        std::vector<VkImageLayout> newLayouts(numImages, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        transition(m_mirrorSwapChain.images, oldLayouts, newLayouts);
+        spdlog::info("Mirror window swap chain created");
+    }
+
+    void VulkanGraphicsService::shutdownMirrorWindow() {
+        glfwSetWindowShouldClose(m_window._, GLFW_TRUE);
+        vkDestroySwapchainKHR(m_device, m_mirrorSwapChain.swapchain, nullptr);
+        vkDestroySurfaceKHR(vulkanContext().instance, m_mirrorSwapChain.surface, nullptr);
+        vkDestroySemaphore(m_device, m_transferStart, nullptr);
+        vkDestroySemaphore(m_device, m_transferComplete, nullptr);
+    }
+
+    void
+    VulkanGraphicsService::transition(const std::vector<VkImage> &images, const std::vector<VkImageLayout> &oldLayouts,
+                                      const std::vector<VkImageLayout> &newLayouts) {
+
+        scoped([&](auto commandBuffer){
+            const auto numBarriers = images.size();
+            std::vector<VkImageMemoryBarrier> barriers(numBarriers, makeStruct<VkImageMemoryBarrier>());
+
+            for(int i = 0; i < numBarriers; i++){
+                auto& barrier = barriers[i];
+                barrier.srcAccessMask = VK_ACCESS_NONE;
+                barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+                barrier.oldLayout = oldLayouts[i];
+                barrier.newLayout = newLayouts[i];
+                barrier.image = images[i];
+                barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                barrier.subresourceRange.baseMipLevel = 0;
+                barrier.subresourceRange.levelCount = 1;
+                barrier.subresourceRange.baseArrayLayer = 0;
+                barrier.subresourceRange.layerCount = 1;
+            }
+
+            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0,
+                                 nullptr, 0, nullptr, 1, barriers.data());
+        });
+    }
+
+#endif
 }
 
 

@@ -71,7 +71,7 @@ namespace vr {
         createInfo.enabledExtensionCount = extensions.size();
         createInfo.enabledExtensionNames = extensions.data();
 
-        Context ctx{};
+        Context ctx{ .info = createInfo };
 
         if(XR_FAILED(xrCreateInstance(&createInfo, &ctx.instance))) {
             return std::nullopt;

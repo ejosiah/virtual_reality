@@ -1,5 +1,6 @@
 #pragma once
 
+#include <GLFW/glfw3.h>
 #include "../Graphics.hpp"
 #include "xr_struct_mapping.hpp"
 #include "VulkanContext.hpp"
@@ -7,12 +8,18 @@
 #include <openxr/openxr_platform.h>
 #include "openxr_ext_loader.h"
 #include "VkEnumerators.hpp"
-#include "Memory.hpp"
+#include "XrVulkanSwapChain.hpp"
+#ifdef USE_MIRROR_WINDOW
+#include "vr/WindowingSystem.hpp"
+#endif
 
+#include "Memory.hpp"
+#include "MirrorSwapChain.hpp"
 #include <stdexcept>
 #include <sstream>
 #include <format>
 #include <span>
+
 #include <filesystem>
 
 namespace vr {
@@ -23,15 +30,6 @@ namespace vr {
         Buffer gpu{};
     };
 
-    struct VulkanSwapChain{
-        std::string name;
-        XrSwapchain swapchain;
-        uint32_t width;
-        uint32_t height;
-        VkFormat format;
-        std::vector<XrSwapchainImageVulkanKHR> images;
-    };
-
     struct CopyRequest {
         Buffer source;
         ImageId imageId;
@@ -39,11 +37,16 @@ namespace vr {
         uint32_t  arrayLayer{0};
     };
 
-    class VulkanGraphicsService : public GraphicsService {
+    struct WaitSemaphore {
+        VkSemaphore _{};
+        VkPipelineStageFlags stage{};
+    };
+
+    class VulkanGraphicsService final : public GraphicsService {
     public:
         explicit VulkanGraphicsService(const Context &context);
 
-        ~VulkanGraphicsService() override = default;
+        ~VulkanGraphicsService() final = default;
 
         void setSwapChains(std::vector<SwapChain> swapchains)  final;
 
@@ -63,18 +66,17 @@ namespace vr {
 
         void release(Buffer buffer);
 
-        [[nodiscard]]
-        int64_t swapChainFormat() const final;
-
         [[nodiscard]] VkQueue queue() const;
 
         [[nodiscard]] VkDevice device() const {
             return m_device;
         }
 
-        const VulkanSwapChain& getSwapChain(const std::string& name);
+        const XrVulkanSwapChain& getSwapChain(const std::string& name);
 
-        void shutdown() override;
+        void shutdown() final;
+
+        glm::mat4 projection(const XrFovf &fov, float zNear, float zFar) final;
 
         VkCommandBuffer commandBuffer(uint32_t imageIndex);
 
@@ -91,7 +93,7 @@ namespace vr {
             buffer.mapping = nullptr;
         }
 
-        void scoped(auto&& operation) {
+        void scoped(auto&& operation, const std::vector<WaitSemaphore>& waits = {}, const std::vector<VkSemaphore>& signals = {}) {
             auto allocateInfo = makeStruct<VkCommandBufferAllocateInfo>();
             allocateInfo.commandPool = m_scopedCommandPool;
             allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -107,9 +109,22 @@ namespace vr {
             operation(commandBuffer);
             vkEndCommandBuffer(commandBuffer);
 
+            std::vector<VkSemaphore> waitSemaphores;
+            std::vector<VkPipelineStageFlags> waitStages;
+            for(auto semaphore : waits) {
+                waitSemaphores.push_back(semaphore._);
+                waitStages.push_back(semaphore.stage);
+            }
+
+
             auto submitInfo = makeStruct<VkSubmitInfo>();
             submitInfo.pCommandBuffers = &commandBuffer;
             submitInfo.commandBufferCount = 1;
+            submitInfo.waitSemaphoreCount = waitSemaphores.size();
+            submitInfo.pWaitSemaphores = waitSemaphores.data();
+            submitInfo.pWaitDstStageMask = waitStages.data();
+            submitInfo.signalSemaphoreCount = signals.size();
+            submitInfo.pSignalSemaphores = signals.data();
 
             CHECK_VULKAN(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE));
             vkQueueWaitIdle(m_graphicsQueue);
@@ -161,6 +176,14 @@ namespace vr {
 
         void submitToGraphicsQueue(const VkSubmitInfo &submitInfo);
 
+#ifdef USE_MIRROR_WINDOW
+        void initMirrorWindow() final;
+
+        void mirror(const ImageId &imageId) final;
+
+        void shutdownMirrorWindow() final;
+#endif
+
     private:
         void pickDevice();
 
@@ -175,9 +198,10 @@ namespace vr {
         void initializeGraphicsBinding();
 
         void logDevice();
-
-
+        
         void initGuard() const;
+
+        void transition(const std::vector<VkImage>& images, const std::vector<VkImageLayout>& oldLayouts, const std::vector<VkImageLayout>& newLayouts);
 
     private:
         XrGraphicsBindingVulkanKHR m_bindingInfo{ XR_TYPE_GRAPHICS_BINDING_VULKAN2_KHR };
@@ -185,7 +209,7 @@ namespace vr {
         VkDevice m_device{VK_NULL_HANDLE};
         VkQueue m_graphicsQueue{VK_NULL_HANDLE};
         uint32_t m_graphicsFamilyIndex{};
-        std::vector<VulkanSwapChain> m_swapChains;
+        std::vector<XrVulkanSwapChain> m_swapChains;
         VmaMemoryAllocator allocator;
         VkCommandPool m_commandPool;
         VkCommandPool m_scopedCommandPool;
@@ -202,5 +226,13 @@ namespace vr {
         std::vector<VkRenderPass> m_renderPasses;
         std::vector<VkFramebuffer> m_frameBuffers;
         std::vector<Image> m_images;
+        std::vector<VkImageView> m_imageViews;
+
+#ifdef USE_MIRROR_WINDOW
+        Window m_window{};
+        MirrorSwapChain m_mirrorSwapChain{};
+        VkSemaphore m_transferComplete{};
+        VkSemaphore m_transferStart{};
+#endif
     };
 }

@@ -87,13 +87,10 @@ namespace vr {
 
     void SessionService::createSwapChain() {
 
-        int64_t format = m_graphics->swapChainFormat();
-
-        if(!imageFormatIsSupported(format)){
-            throw std::runtime_error{"chosen swapchain image format unsupported"};
-        }
-
         for(const auto& spec : m_config._swapchains) {
+            if(!imageFormatIsSupported(spec._format)){
+                throw std::runtime_error{"chosen swapchain image format unsupported"};
+            }
             XrSwapchainCreateInfo createInfo = makeStruct<XrSwapchainCreateInfo>();
             createInfo.usageFlags = spec._usageFlags;
             createInfo.format = spec._format;
@@ -149,7 +146,7 @@ namespace vr {
             if(frameState.shouldRender){
                 uint32_t imageIndex;
                 xrAcquireSwapchainImage(swapchain.handle, nullptr, &imageIndex);
-
+                ImageId imageId{swapchain.spec._name, imageIndex};
                 auto waitInfo = makeStruct<XrSwapchainImageWaitInfo>();
                 waitInfo.timeout = XR_INFINITE_DURATION;
 
@@ -179,12 +176,16 @@ namespace vr {
                         m_sessionService.m_renderer->set(spaceLocations);
                     }
 
-                    frame = frameLoop({{swapchain.spec._name, imageIndex}
+                    frame = frameLoop({ imageId
                                         , {viewState, std::move(views)}
                                         , m_sessionService.m_mainViewSpace
                                         , frameState.predictedDisplayTime
                                         , frameState.predictedDisplayPeriod
                                         , static_cast<float>(swapchain.spec._width)/static_cast<float>(swapchain.spec._height)});
+
+#ifdef USE_MIRROR_WINDOW
+                    m_sessionService.m_graphics->mirror(imageId);
+#endif
 
                 }
                 xrReleaseSwapchainImage(swapchain.handle, nullptr);

@@ -3,6 +3,10 @@
 #include "xr_struct_mapping.hpp"
 #include "vr/ToString.hpp"
 
+#ifdef USE_MIRROR_WINDOW
+#include "vr/WindowingSystem.hpp"
+#endif
+
 #include <spdlog/spdlog.h>
 
 #include <cmath>
@@ -26,6 +30,9 @@ namespace vr {
     {}
 
     void Application::run() {
+#ifdef USE_MIRROR_WINDOW
+        WindowingSystem::init();
+#endif
         do {
             auto context = m_contextCreator.create();
 
@@ -41,6 +48,10 @@ namespace vr {
 
             SessionService session{ *context, m_sessionConfig, graphicsService, m_renderer };
             session.init();
+
+#ifdef USE_MIRROR_WINDOW
+            graphicsService->initMirrorWindow();
+#endif
 
             auto event = makeStruct<XrEventDataBuffer>();
             while(session.isRunning()) {
@@ -61,6 +72,10 @@ namespace vr {
                 session.processFrame();
             }
 
+#ifdef USE_MIRROR_WINDOW
+            graphicsService->shutdownMirrorWindow();
+#endif
+
             graphicsService->shutdown();
             context->destroy();
 
@@ -68,6 +83,10 @@ namespace vr {
                 break;
             }
         } while (true);
+
+#ifdef USE_MIRROR_WINDOW
+        WindowingSystem::shutdown();
+#endif
 
         spdlog::info("XR instance terminated, exiting application");
     }

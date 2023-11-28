@@ -50,12 +50,16 @@ namespace vr {
 
 
     void VmaMemoryAllocator::deallocate(Buffer buffer) {
+        if(buffer.mapping != nullptr){
+            vmaUnmapMemory(allocator, buffer.allocation);
+        }
         vmaDestroyBuffer(allocator, buffer.handle, buffer.allocation);
     }
 
     void VmaMemoryAllocator::deallocate(Image image) {
         vmaDestroyImage(allocator, image.handle, image.allocation);
     }
+
 
 
 }

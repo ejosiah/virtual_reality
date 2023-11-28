@@ -29,8 +29,7 @@ namespace vr {
         std::string _engineName{};
         uint32_t _engineVersion{0};
         uint32_t _apiVersion{VK_API_VERSION_1_3};
-        VkFormat _format{VK_FORMAT_UNDEFINED};
-        std::vector<cstring> extensions {
+        mutable std::vector<cstring> extensions {
 #ifndef NDEBUG
 #ifdef VK_DEBUG
                 VK_EXT_DEBUG_UTILS_EXTENSION_NAME
@@ -80,11 +79,6 @@ namespace vr {
 
         VulkanContextCreation& apiVersion(uint32_t version) {
             _apiVersion = version;
-            return *this;
-        }
-
-        VulkanContextCreation& swapChainImageFormat(VkFormat format) {
-            _format = format;
             return *this;
         }
 

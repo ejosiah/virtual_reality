@@ -1,4 +1,5 @@
-#include <iostream>
+#include <vulkan/vulkan.h>
+#include <GLFW/glfw3.h>
 #include "vr/graphics/vulkan/VulkanContext.hpp"
 #include "vr/graphics/vulkan/VulkanGraphicsService.hpp"
 #include "vr/SessionConfig.hpp"
@@ -6,9 +7,11 @@
 #include "vr/specification/Specifications.hpp"
 #include "CheckerboardRenderer.hpp"
 #include "ClearScreen.hpp"
+#include "vr/WindowingSystem.hpp"
+
 #include "SpaceVisiualization.hpp"
 
-#include <vulkan/vulkan.h>
+#include <iostream>
 
 int main() {
     spdlog::set_level(spdlog::level::debug);
@@ -21,7 +24,6 @@ int main() {
         .formFactor(XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY)
             .graphics<vr::VulkanContextCreation>()
                 .appName(renderer->name())
-                .swapChainImageFormat(VK_FORMAT_R8G8B8A8_SRGB)
                 .apiVersion(VK_API_VERSION_1_3)
                 .addLayer("VK_LAYER_KHRONOS_validation");
 
@@ -40,6 +42,5 @@ int main() {
         spdlog::error("Application Error, reason: {}", error.what());
         return 500;
     }
-
     return 0;
 }

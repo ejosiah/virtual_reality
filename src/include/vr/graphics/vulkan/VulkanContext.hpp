@@ -14,9 +14,6 @@ namespace vr {
     struct VulkanContext : GraphicsContext {
         VkInstance instance = VK_NULL_HANDLE;
         uint32_t apiVersion = 0;
-        VkFormat swapChainImageFormat{VK_FORMAT_UNDEFINED};
-
-
 
 #ifndef NDEBUG
 #ifdef VK_DEBUG

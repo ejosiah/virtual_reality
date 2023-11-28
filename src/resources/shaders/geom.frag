@@ -8,5 +8,5 @@ layout(location = 0) out vec4 fragColor;
 
 void main() {
     vec3 color = abs(fs_in.normal);
-    fragColor = vec4(color, 1);
+    fragColor = vec4(1, 0, 0, 1);
 }

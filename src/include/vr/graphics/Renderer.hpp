@@ -24,6 +24,8 @@ namespace vr {
 
         virtual void init() {}
 
+        virtual void cleanup() {}
+
         virtual cstring name() { return ""; }
 
         virtual FrameEnd paused(const FrameInfo &frameInfo) = 0;

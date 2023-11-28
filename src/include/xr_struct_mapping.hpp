@@ -335,16 +335,36 @@ inline VkPipelineDynamicStateCreateInfo makeStruct<VkPipelineDynamicStateCreateI
 }
 
 template<>
-inline VkRenderPassCreateInfo  makeStruct<VkRenderPassCreateInfo>() {
+inline VkRenderPassCreateInfo makeStruct<VkRenderPassCreateInfo>() {
     return { VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
 }
 
 template<>
-inline VkFramebufferCreateInfo  makeStruct<VkFramebufferCreateInfo>() {
+inline VkFramebufferCreateInfo makeStruct<VkFramebufferCreateInfo>() {
     return { VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
 }
 
 template<>
-inline VkRenderPassBeginInfo  makeStruct<VkRenderPassBeginInfo>() {
+inline VkRenderPassBeginInfo makeStruct<VkRenderPassBeginInfo>() {
     return { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
+}
+
+template<>
+inline VkSwapchainCreateInfoKHR makeStruct<VkSwapchainCreateInfoKHR>() {
+    return { VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR };
+}
+
+template<>
+inline VkPresentInfoKHR makeStruct<VkPresentInfoKHR>() {
+    return { VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
+}
+
+template<>
+inline VkSemaphoreCreateInfo makeStruct<VkSemaphoreCreateInfo>() {
+    return { VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+}
+
+template<>
+inline VkFenceCreateInfo makeStruct<VkFenceCreateInfo>() {
+    return { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
 }

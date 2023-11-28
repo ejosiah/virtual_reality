@@ -68,11 +68,13 @@ public:
         graphicsService().release(staging);
 
         m_instances.transforms = graphicsService().link<glm::mat4>(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, numInstances);
+        m_instances.transforms.cpu[0] = glm::translate(glm::mat4(1), {0, 0, -2});
 
     }
 
     void initCamera() {
         m_camera = graphicsService().link<CameraType>(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+        m_camera.cpu->projection;
     }
 
     void createRenderPass() {
@@ -81,7 +83,7 @@ public:
                     VK_FORMAT_R8G8B8A8_SRGB,
                     VK_SAMPLE_COUNT_1_BIT,
                     VK_ATTACHMENT_LOAD_OP_CLEAR,
-                    VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                    VK_ATTACHMENT_STORE_OP_STORE,
                     VK_ATTACHMENT_LOAD_OP_DONT_CARE,
                     VK_ATTACHMENT_STORE_OP_DONT_CARE,
                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -92,7 +94,7 @@ public:
                     m_frameBuffers.front().depth.format,
                     VK_SAMPLE_COUNT_1_BIT,
                     VK_ATTACHMENT_LOAD_OP_CLEAR,
-                    VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                    VK_ATTACHMENT_STORE_OP_STORE,
                     VK_ATTACHMENT_LOAD_OP_DONT_CARE,
                     VK_ATTACHMENT_STORE_OP_DONT_CARE,
                     VK_IMAGE_LAYOUT_UNDEFINED,
@@ -392,16 +394,16 @@ public:
 
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-//            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline._);
-//            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline.layout
-//                                    , 0, 1, &m_descriptorSet, 0, VK_NULL_HANDLE);
-//
-//            VkDeviceSize offset = 0;
-//            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_cube.vertex.handle, &offset);
-//            vkCmdBindIndexBuffer(commandBuffer, m_cube.index.handle, 0, VK_INDEX_TYPE_UINT32);
-//            uint32_t indexCount = m_cube.index.info.size / sizeof(uint32_t);
-//            vkCmdDrawIndexed(commandBuffer, indexCount, numInstances, 0, 0, 0);
-//
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline._);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline.layout
+                                    , 0, 1, &m_descriptorSet, 0, VK_NULL_HANDLE);
+
+            VkDeviceSize offset = 0;
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_cube.vertex.handle, &offset);
+            vkCmdBindIndexBuffer(commandBuffer, m_cube.index.handle, 0, VK_INDEX_TYPE_UINT32);
+            uint32_t indexCount = m_cube.index.info.size / sizeof(uint32_t);
+            vkCmdDrawIndexed(commandBuffer, indexCount, numInstances, 0, 0, 0);
+
             vkCmdEndRenderPass(commandBuffer);
             vkEndCommandBuffer(commandBuffer);
 
@@ -452,9 +454,8 @@ public:
 
     void renderCubes(const vr::FrameInfo &frameInfo) {
         const auto& view = frameInfo.viewInfo.views.front();
-        auto fov = view.fov.angleRight - view.fov.angleLeft;
-        m_camera.cpu->view = vr::toMatrix(view.pose);
-        m_camera.cpu->projection = xform::perspectiveHFov(fov, frameInfo.aspectRatio, 0.1, 5.0);
+        m_camera.cpu->view = glm::inverse(vr::toMatrix(view.pose));
+        m_camera.cpu->projection = graphicsService().projection(view.fov, 0.1, 100);
         auto commandBuffer = m_commandBuffers[frameInfo.imageId.imageIndex];
 
         auto submitInfo = makeStruct<VkSubmitInfo>();
@@ -539,13 +540,13 @@ private:
     struct {
         VkPipelineLayout layout;
         VkPipeline _;
-    } m_pipeline;
+    } m_pipeline{};
 
     Camera m_camera;
-    VkDescriptorPool m_pool;
-    VkDescriptorSetLayout m_descriptorSetLayout;
-    VkDescriptorSet m_descriptorSet;
-    VkRenderPass m_renderPass;
+    VkDescriptorPool m_pool{};
+    VkDescriptorSetLayout m_descriptorSetLayout{};
+    VkDescriptorSet m_descriptorSet{};
+    VkRenderPass m_renderPass{};
     std::vector<FrameBuffer> m_frameBuffers;
     std::vector<VkCommandBuffer> m_commandBuffers;
     mutable XrCompositionLayerProjection m_projectionLayer{ XR_TYPE_COMPOSITION_LAYER_PROJECTION };

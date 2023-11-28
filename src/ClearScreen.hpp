@@ -3,8 +3,11 @@
 #include <vr/graphics/vulkan/VulkanRenderer.hpp>
 #include "vr/SessionConfig.hpp"
 #include <glm/glm.hpp>
-
 #include <array>
+
+struct aColor {
+    char r, g, b, a;
+};
 
 struct ClearScreen : public vr::VulkanRenderer {
 
@@ -16,8 +19,9 @@ struct ClearScreen : public vr::VulkanRenderer {
         clearColors[1].color = {0, 1.f, 0, 1.f};
         clearColors[2].color = {0, 0, 1.f, 1.f};
         createImageViews();
-        createRenderPass();
-        createFrameBuffer();
+
+        glm::mat4 result{1};
+        result[0];
     }
 
     void createImageViews() {
@@ -38,20 +42,15 @@ struct ClearScreen : public vr::VulkanRenderer {
         }
     }
 
-    void createRenderPass() {
-
-    }
-
-    void createFrameBuffer() {
-
-    }
-
     vr::FrameEnd paused(const vr::FrameInfo &frameInfo) override {
         return render(frameInfo);
     }
 
     vr::FrameEnd render(const vr::FrameInfo &frameInfo) override {
+        static float elapsedTimeSeconds = 0;
+        elapsedTimeSeconds += static_cast<float>(frameInfo.predictedDuration) * 1E-9f;
         const auto swapChain = graphicsService().getSwapChain("main");
+        int colorIndex = static_cast<int>(elapsedTimeSeconds/5)%3;
         graphicsService().scoped([&](auto cmdBuffer){
             auto info = makeStruct<VkRenderingInfo>();
             info.flags = VK_RENDERING_CONTENTS_INLINE_BIT_EXT;
@@ -64,8 +63,8 @@ struct ClearScreen : public vr::VulkanRenderer {
             attachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
             attachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
             attachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-            attachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            attachmentInfo.clearValue = {{1.0f, 0.0f, 0.0f, 1.0f}};
+            attachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+            attachmentInfo.clearValue = clearColors[colorIndex];
             info.pColorAttachments = &attachmentInfo;
 
             vkCmdBeginRendering(cmdBuffer, &info);
@@ -89,6 +88,10 @@ struct ClearScreen : public vr::VulkanRenderer {
         return frameEnd;
     }
 
+    void cleanup() override {
+
+    }
+
     static std::shared_ptr<vr::Renderer> shared() {
         return std::make_shared<ClearScreen>();
     }
@@ -101,6 +104,8 @@ struct ClearScreen : public vr::VulkanRenderer {
                             .name("main")
                             .usage()
                                 .colorAttachment()
+                                .transferDestination()
+                                .transferSource()
                             .format(VK_FORMAT_R8G8B8A8_SRGB)
                             .width(2064)
                             .height(2096));

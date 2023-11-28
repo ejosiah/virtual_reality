@@ -23,6 +23,7 @@ namespace vr {
         XrInstance instance{XR_NULL_HANDLE};
         XrSystemId systemId{XR_NULL_SYSTEM_ID};
         std::shared_ptr<GraphicsContext> graphicsContext;
+        XrInstanceCreateInfo info{};
 #ifndef NDEBUG
 #ifdef XR_DEBUG
       XrDebugUtilsMessengerEXT debugMessenger{XR_NULL_HANDLE};

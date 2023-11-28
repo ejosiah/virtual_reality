@@ -1,10 +1,12 @@
 #pragma once
 
+
 #include "print.hpp"
 
 #include <openxr/openxr.h>
 #include <vulkan/vulkan.h>
 #include <spdlog/spdlog.h>
+#include <cpptrace/cpptrace.hpp>
 
 #include <cassert>
 
@@ -39,7 +41,7 @@
         failureMessage += std::format("\n    Source: {}", sourceLocation);
     }
 
-    throw std::runtime_error(failureMessage);
+    throw cpptrace::runtime_error(failureMessage.c_str());
 }
 
 #define THROW(msg) Throw(msg, nullptr, FILE_AND_LINE);

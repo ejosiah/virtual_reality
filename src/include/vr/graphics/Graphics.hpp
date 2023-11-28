@@ -4,6 +4,7 @@
 #include "vr/Models.hpp"
 
 #include <openxr/openxr.h>
+#include <glm/glm.hpp>
 
 #include <utility>
 #include <vector>
@@ -11,7 +12,7 @@
 
 namespace vr {
     struct GraphicsService {
-        GraphicsService(const Context& context)
+        explicit GraphicsService(const Context& context)
         : m_context(context)
         {}
 
@@ -30,12 +31,19 @@ namespace vr {
 
         virtual void setSwapChains(std::vector<SwapChain> swapchains) = 0;
 
-        [[nodiscard]]
-        virtual int64_t swapChainFormat() const  = 0;
+        virtual glm::mat4 projection(const XrFovf &fov, float zNear, float zFar) {
+            return glm::mat4{1};
+        }
+
+#ifdef USE_MIRROR_WINDOW
+        virtual void initMirrorWindow() {};
+
+        virtual void mirror(const ImageId& imageId) {}
+
+        virtual void shutdownMirrorWindow() {};
+#endif
 
     protected:
         const Context& m_context;
-
-
     };
 }

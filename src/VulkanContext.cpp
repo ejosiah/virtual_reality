@@ -8,6 +8,9 @@
 #endif
 
 #endif
+#ifdef USE_MIRROR_WINDOW
+#include "vr/WindowingSystem.hpp"
+#endif
 #include <vulkan_ext_loader.h>
 #include <openxr_ext_loader.h>
 #include <spdlog/spdlog.h>
@@ -38,9 +41,6 @@ namespace vr {
         if(_apiVersion == 0) {
             throw std::runtime_error{"VulkanContextCreation: apiVersion required"};
         }
-        if(_format == VK_FORMAT_UNDEFINED) {
-            throw std::runtime_error{"VulkanContextCreation: swapChainImageFormat required"};
-        }
 
         validateVersions(ctx, _apiVersion);
 
@@ -65,6 +65,13 @@ namespace vr {
 #endif
 #endif
 #endif
+#ifdef USE_MIRROR_WINDOW
+      auto windowExtensions = WindowingSystem::vulkanExtensions();
+      for(auto extension : windowExtensions) {
+          extensions.push_back(extension);
+      }
+#endif
+
         vulkanCreatInfo.pApplicationInfo = &appInfo;
         vulkanCreatInfo.enabledExtensionCount = extensions.size();
         vulkanCreatInfo.ppEnabledExtensionNames = extensions.data();
@@ -85,7 +92,6 @@ namespace vr {
         auto vulkanCtx = std::make_shared<VulkanContext>();
         vulkanCtx->instance = instance;
         vulkanCtx->apiVersion = _apiVersion;
-        vulkanCtx->swapChainImageFormat = _format;
 #ifndef NDEBUG
 #ifndef XR_DEBUG
 #ifdef VK_DEBUG
