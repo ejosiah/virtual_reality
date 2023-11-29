@@ -53,7 +53,7 @@ public:
         createDescriptorSetLayout();
         updateDescriptorSet();
         createPipeline();
-//        createCommandBuffer();
+        createCommandBuffer();
         setupViews();
     }
 
@@ -97,25 +97,25 @@ public:
                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                 },
-                {
-                    0,
-                    m_frameBuffers.front().depth.format,
-                    VK_SAMPLE_COUNT_1_BIT,
-                    VK_ATTACHMENT_LOAD_OP_CLEAR,
-                    VK_ATTACHMENT_STORE_OP_STORE,
-                    VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-                    VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                    VK_IMAGE_LAYOUT_UNDEFINED,
-                    VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-                }
+//                {
+//                    0,
+//                    m_frameBuffers[0].front().depth.format,
+//                    VK_SAMPLE_COUNT_1_BIT,
+//                    VK_ATTACHMENT_LOAD_OP_CLEAR,
+//                    VK_ATTACHMENT_STORE_OP_STORE,
+//                    VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+//                    VK_ATTACHMENT_STORE_OP_DONT_CARE,
+//                    VK_IMAGE_LAYOUT_UNDEFINED,
+//                    VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+//                }
         };
 
         VkAttachmentReference colorAttachment{0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-        VkAttachmentReference depthAttachment{1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
+//        VkAttachmentReference depthAttachment{1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
         VkSubpassDescription subPassDescription{ 0, VK_PIPELINE_BIND_POINT_GRAPHICS};
         subPassDescription.colorAttachmentCount = 1;
         subPassDescription.pColorAttachments = &colorAttachment;
-        subPassDescription.pDepthStencilAttachment = &depthAttachment;
+//        subPassDescription.pDepthStencilAttachment = &depthAttachment;
 
         VkSubpassDependency dependency{};
 
@@ -150,36 +150,39 @@ public:
         createViewInfo.subresourceRange.layerCount = 1;
         createViewInfo.subresourceRange.baseArrayLayer = 0;
 
-        m_frameBuffers.resize( numImages );
+        for (int vi = 0; vi < 2; vi++) {
+            m_frameBuffers[vi].resize(numImages);
 
-        for(int i = 0; i < numImages; i++){
-            m_frameBuffers[i].color.image.handle = swapChain.images[i].image;
+            for (int i = 0; i < numImages; i++) {
+                m_frameBuffers[vi][i].color.image.handle = swapChain.images[i].image;
 
-            createViewInfo.image = swapChain.images[i].image;
-            m_frameBuffers[i].color.imageView = graphicsService().createImageView(createViewInfo);
-        }
+                createViewInfo.image = swapChain.images[i].image;
+                createViewInfo.subresourceRange.baseArrayLayer = vi;
+                m_frameBuffers[vi][i].color.imageView = graphicsService().createImageView(createViewInfo);
+            }
 
 
-        for(int i = 0; i < numImages; i++) {
-            m_frameBuffers[i].depth.format = VK_FORMAT_D32_SFLOAT_S8_UINT;
-            auto createImageInfo = makeStruct<VkImageCreateInfo>();
-            createImageInfo.imageType = VK_IMAGE_TYPE_2D;
-            createImageInfo.format = m_frameBuffers[i].depth.format;
-            createImageInfo.extent = { swapChain.width, swapChain.height, 1};
-            createImageInfo.mipLevels = 1;
-            createImageInfo.arrayLayers = 1;
-            createImageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-            createImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-            createImageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-            createImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-            createImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-            m_frameBuffers[i].depth.image = graphicsService().creatImage(createImageInfo);
-
-            createViewInfo.format =  m_frameBuffers[i].depth.format;
-            createViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-            createViewInfo.image = m_frameBuffers[i].depth.image.handle;
-            m_frameBuffers[i].depth.imageView = graphicsService().createImageView(createViewInfo);
+//            for (int i = 0; i < numImages; i++) {
+//                m_frameBuffers[vi][i].depth.format = VK_FORMAT_D32_SFLOAT_S8_UINT;
+//                auto createImageInfo = makeStruct<VkImageCreateInfo>();
+//                createImageInfo.imageType = VK_IMAGE_TYPE_2D;
+//                createImageInfo.format = m_frameBuffers[vi][i].depth.format;
+//                createImageInfo.extent = {swapChain.width, swapChain.height, 1};
+//                createImageInfo.mipLevels = 1;
+//                createImageInfo.arrayLayers = 1;
+//                createImageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+//                createImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+//                createImageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+//                createImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+//                createImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+//
+//                m_frameBuffers[vi][i].depth.image = graphicsService().creatImage(createImageInfo);
+//
+//                createViewInfo.format = m_frameBuffers[vi][i].depth.format;
+//                createViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+//                createViewInfo.image = m_frameBuffers[vi][i].depth.image.handle;
+//                m_frameBuffers[vi][i].depth.imageView = graphicsService().createImageView(createViewInfo);
+//            }
         }
     }
 
@@ -187,20 +190,22 @@ public:
         const auto& swapChain = graphicsService().getSwapChain("main");
         const auto numImages = swapChain.images.size();
 
-        for(int i = 0; i < numImages; i++){
-            std::array<VkImageView, 2> attachments{};
-            attachments[0] = m_frameBuffers[i].color.imageView;
-            attachments[1] = m_frameBuffers[i].depth.imageView;
+        for (auto vi = 0; vi < 2; vi++) {
+            for (int i = 0; i < numImages; i++) {
+                std::array<VkImageView, 1> attachments{};
+                attachments[0] = m_frameBuffers[vi][i].color.imageView;
+//                attachments[1] = m_frameBuffers[vi][i].depth.imageView;
 
-            auto createInfo = makeStruct<VkFramebufferCreateInfo>();
-            createInfo.renderPass = m_renderPass;
-            createInfo.attachmentCount = 2;
-            createInfo.pAttachments = attachments.data();
-            createInfo.width = swapChain.width;
-            createInfo.height = swapChain.height;
-            createInfo.layers = 1;
+                auto createInfo = makeStruct<VkFramebufferCreateInfo>();
+                createInfo.renderPass = m_renderPass;
+                createInfo.attachmentCount = attachments.size();
+                createInfo.pAttachments = attachments.data();
+                createInfo.width = swapChain.width;
+                createInfo.height = swapChain.height;
+                createInfo.layers = 1;
 
-            m_frameBuffers[i]._ = graphicsService().createFrameBuffer(createInfo);
+                m_frameBuffers[vi][i]._ = graphicsService().createFrameBuffer(createInfo);
+            }
         }
     }
 
@@ -332,8 +337,8 @@ public:
 
         // Depth and Stencil state
         auto depthStencilState = makeStruct<VkPipelineDepthStencilStateCreateInfo>();
-        depthStencilState.depthTestEnable = VK_TRUE;
-        depthStencilState.depthWriteEnable = VK_TRUE;
+        depthStencilState.depthTestEnable = VK_FALSE;
+        depthStencilState.depthWriteEnable = VK_FALSE;
         depthStencilState.depthCompareOp = VK_COMPARE_OP_LESS;
         depthStencilState.minDepthBounds = 0;
         depthStencilState.maxDepthBounds = 1;
@@ -383,42 +388,43 @@ public:
     }
 
     void createCommandBuffer() {
-        const auto& swapChain = graphicsService().getSwapChain("main");
-        const auto numImages = swapChain.images.size();
-        auto commandBuffers = graphicsService().allocateCommandBuffers(numImages);
-
-        for(auto i = 0; i < numImages; ++i) {
-            auto commandBuffer = commandBuffers[i];
-            auto beginInfo = makeStruct<VkCommandBufferBeginInfo>();
-            vkBeginCommandBuffer(commandBuffer, &beginInfo);
-
-            std::array<VkClearValue, 2> clearValues{};
-            clearValues[0].color = {0.184313729f, 0.309803933f, 0.309803933f, 1.f};
-            clearValues[1].depthStencil = {1.0, 0u};
-            auto renderPassInfo = makeStruct<VkRenderPassBeginInfo>();
-            renderPassInfo.renderPass = m_renderPass;
-            renderPassInfo.framebuffer = m_frameBuffers[i]._;
-            renderPassInfo.renderArea = {{0, 0}, {swapChain.width, swapChain.height}};
-            renderPassInfo.clearValueCount = 2;
-            renderPassInfo.pClearValues = clearValues.data();
-
-            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline._);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline.layout
-                                    , 0, 1, &m_descriptorSet, 0, VK_NULL_HANDLE);
-
-            VkDeviceSize offset = 0;
-            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_cube.vertex.handle, &offset);
-            vkCmdBindIndexBuffer(commandBuffer, m_cube.index.handle, 0, VK_INDEX_TYPE_UINT32);
-            uint32_t indexCount = m_cube.index.info.size / sizeof(uint32_t);
-            vkCmdDrawIndexed(commandBuffer, indexCount, numInstances, 0, 0, 0);
-
-            vkCmdEndRenderPass(commandBuffer);
-            vkEndCommandBuffer(commandBuffer);
-
-            m_commandBuffers.push_back(commandBuffer);
-        }
+//        const auto& swapChain = graphicsService().getSwapChain("main");
+//        const auto numImages = swapChain.images.size();
+        auto cmdBuffers = graphicsService().allocateCommandBuffers(2);
+        m_commandBuffers = std::vector<VkCommandBuffer>(cmdBuffers.begin(), cmdBuffers.end());
+//
+//        for(auto i = 0; i < numImages; ++i) {
+//            auto commandBuffer = commandBuffers[i];
+//            auto beginInfo = makeStruct<VkCommandBufferBeginInfo>();
+//            vkBeginCommandBuffer(commandBuffer, &beginInfo);
+//
+//            std::array<VkClearValue, 2> clearValues{};
+//            clearValues[0].color = {0.184313729f, 0.309803933f, 0.309803933f, 1.f};
+//            clearValues[1].depthStencil = {1.0, 0u};
+//            auto renderPassInfo = makeStruct<VkRenderPassBeginInfo>();
+//            renderPassInfo.renderPass = m_renderPass;
+//            renderPassInfo.framebuffer = m_frameBuffers[i]._;
+//            renderPassInfo.renderArea = {{0, 0}, {swapChain.width, swapChain.height}};
+//            renderPassInfo.clearValueCount = 2;
+//            renderPassInfo.pClearValues = clearValues.data();
+//
+//            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+//
+//            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline._);
+//            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline.layout
+//                                    , 0, 1, &m_descriptorSet, 0, VK_NULL_HANDLE);
+//
+//            VkDeviceSize offset = 0;
+//            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_cube.vertex.handle, &offset);
+//            vkCmdBindIndexBuffer(commandBuffer, m_cube.index.handle, 0, VK_INDEX_TYPE_UINT32);
+//            uint32_t indexCount = m_cube.index.info.size / sizeof(uint32_t);
+//            vkCmdDrawIndexed(commandBuffer, indexCount, numInstances, 0, 0, 0);
+//
+//            vkCmdEndRenderPass(commandBuffer);
+//            vkEndCommandBuffer(commandBuffer);
+//
+//            m_commandBuffers.push_back(commandBuffer);
+//        }
     }
 
     void setupViews() {
@@ -466,7 +472,7 @@ public:
     }
 
     void renderCubes(const vr::FrameInfo &frameInfo) {
-        const auto& view = frameInfo.viewInfo.views.front();
+        const auto& views = frameInfo.viewInfo.views;
 //        m_camera.cpu->view = glm::inverse(vr::toMatrix(view.pose));
 //        m_camera.cpu->projection = graphicsService().projection(view.fov, 0.1, 100);
 //        auto commandBuffer = m_commandBuffers[frameInfo.imageId.imageIndex];
@@ -476,51 +482,64 @@ public:
 //        submitInfo.pCommandBuffers = &commandBuffer;
 //        graphicsService().submitToGraphicsQueue(submitInfo);
 
-        const auto& swapChain = graphicsService().getSwapChain("main");
-        mvp.view = glm::inverse(vr::toMatrix(view.pose));
-        mvp.projection = graphicsService().projection(view.fov, 0.05, 100);
-
         static int renders = 0;
+        for (auto vi = 0; vi < views.size(); ++vi) {
+            auto& view = views[vi];
+            const auto &swapChain = graphicsService().getSwapChain("main");
+            mvp.view = glm::inverse(vr::toMatrix(view.pose));
+            mvp.projection = graphicsService().projection(view.fov, 0.05, 100);
 
-        graphicsService().scoped([&](auto commandBuffer) {
+            renders = 0;
+            auto commandBuffer = m_commandBuffers[vi];
+            auto beginInfo = makeStruct<VkCommandBufferBeginInfo>();
+            vkBeginCommandBuffer(commandBuffer, &beginInfo);
+            //        graphicsService().scoped([&](auto commandBuffer) {
             std::array<VkClearValue, 2> clearValues{};
             clearValues[0].color = {0.184313729f, 0.309803933f, 0.309803933f, 1.f};
             clearValues[1].depthStencil = {1.0, 0u};
             auto renderPassInfo = makeStruct<VkRenderPassBeginInfo>();
             renderPassInfo.renderPass = m_renderPass;
-            renderPassInfo.framebuffer = m_frameBuffers[frameInfo.imageId.imageIndex]._;
-            renderPassInfo.renderArea = {{0, 0}, {swapChain.width, swapChain.height}};
+            renderPassInfo.framebuffer = m_frameBuffers[vi][frameInfo.imageId.imageIndex]._;
+            renderPassInfo.renderArea = {{0,               0},
+                                         {swapChain.width, swapChain.height}};
             renderPassInfo.clearValueCount = 2;
             renderPassInfo.pClearValues = clearValues.data();
 
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline._);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline.layout
-                    , 0, 1, &m_descriptorSet, 0, VK_NULL_HANDLE);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline.layout, 0, 1,
+                                    &m_descriptorSet, 0, VK_NULL_HANDLE);
 
             VkDeviceSize offset = 0;
             vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_cube.vertex.handle, &offset);
             vkCmdBindIndexBuffer(commandBuffer, m_cube.index.handle, 0, VK_INDEX_TYPE_UINT32);
             uint32_t indexCount = m_cube.index.info.size / sizeof(uint32_t);
 
-            for(auto i = 0; i < numInstances; i++){
+            for (auto i = 0; i < numInstances; i++) {
                 mvp.model = models[i];
                 glm::mat4 lmvp = mvp.projection * mvp.view * mvp.model;
                 glm::vec4 wPos = mvp.model * glm::vec4(0, 0, 0, 1);
                 glm::vec4 vPos = mvp.view * wPos;
                 glm::vec4 cPos = lmvp * glm::vec4(0, 0, 0, 1);
                 cPos /= cPos.w;
-//                if(renders < 10) {
-//                    spdlog::error("\nworld pos [{}, {}, {}]\nview pos [{}, {}, {}]\nclip pos [{}, {}, {}]", wPos.x, wPos.y, wPos.z, vPos.x,
-//                                  vPos.y, vPos.z, cPos.x, cPos.y, cPos.z);
-//                }
+                //                if(renders < 10) {
+                //                    spdlog::error("\nworld pos [{}, {}, {}]\nview pos [{}, {}, {}]\nclip pos [{}, {}, {}]", wPos.x, wPos.y, wPos.z, vPos.x,
+                //                                  vPos.y, vPos.z, cPos.x, cPos.y, cPos.z);
+                //                }
                 renders++;
-                vkCmdPushConstants(commandBuffer, m_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mvp), &mvp.model);
+                vkCmdPushConstants(commandBuffer, m_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mvp),
+                                   &mvp.model);
                 vkCmdDrawIndexed(commandBuffer, indexCount, 1, 0, 0, 0);
             }
             vkCmdEndRenderPass(commandBuffer);
-        });
+            vkEndCommandBuffer(commandBuffer);
+        }
+        auto submitInfo = makeStruct<VkSubmitInfo>();
+        submitInfo.commandBufferCount = m_commandBuffers.size();
+        submitInfo.pCommandBuffers = m_commandBuffers.data();
+        graphicsService().submitToGraphicsQueue(submitInfo);
+//        });
 
         static bool once = true;
         if(renders > 10 && once) {
@@ -619,7 +638,7 @@ private:
     VkDescriptorSetLayout m_descriptorSetLayout{};
     VkDescriptorSet m_descriptorSet{};
     VkRenderPass m_renderPass{};
-    std::vector<FrameBuffer> m_frameBuffers;
+    std::array<std::vector<FrameBuffer>, 2> m_frameBuffers;
     std::vector<VkCommandBuffer> m_commandBuffers;
     mutable XrCompositionLayerProjection m_projectionLayer{ XR_TYPE_COMPOSITION_LAYER_PROJECTION };
     std::array<XrCompositionLayerProjectionView, 2> m_views {{
