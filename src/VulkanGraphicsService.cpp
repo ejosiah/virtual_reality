@@ -268,12 +268,14 @@ namespace vr {
     VkDescriptorPool VulkanGraphicsService::createDescriptorPool(const VkDescriptorPoolCreateInfo &createInfo) {
         VkDescriptorPool pool;
         CHECK_VULKAN(vkCreateDescriptorPool(m_device, &createInfo, nullptr, &pool));
+        m_descriptorPools.push_back(pool);
         return pool;
     }
 
     VkDescriptorSetLayout VulkanGraphicsService::createDescriptorSetLayout(VkDescriptorSetLayoutCreateInfo createInfo) {
         VkDescriptorSetLayout setLayout;
         CHECK_VULKAN(vkCreateDescriptorSetLayout(m_device, &createInfo, nullptr, &setLayout));
+        m_descriptorSetLayouts.push_back(setLayout);
         return setLayout;
     }
 
@@ -301,6 +303,9 @@ namespace vr {
     }
 
     void VulkanGraphicsService::shutdown() {
+        for(auto shader : m_shaders){
+            vkDestroyShaderModule(m_device, shader, nullptr);
+        }
         for(auto pipeline : m_pipelines){
             vkDestroyPipeline(m_device, pipeline, nullptr);
         }
@@ -417,6 +422,7 @@ namespace vr {
 
         VkShaderModule shaderModule;
         CHECK_VULKAN(vkCreateShaderModule(m_device, &createInfo, nullptr, &shaderModule));
+        m_shaders.push_back(shaderModule);
         return shaderModule;
     }
 
@@ -428,6 +434,7 @@ namespace vr {
     VkFramebuffer VulkanGraphicsService::createFrameBuffer(const VkFramebufferCreateInfo &createInfo) {
         VkFramebuffer framebuffer;
         CHECK_VULKAN(vkCreateFramebuffer(m_device, &createInfo, nullptr, &framebuffer));
+        m_frameBuffers.push_back(framebuffer);
         return framebuffer;
     }
 
