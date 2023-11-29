@@ -559,6 +559,9 @@ namespace vr {
         m_mirrorSwapChain.createSwapChain(xrSwapChain);
 
         const auto numImages = m_mirrorSwapChain.images.size();
+        for(auto i = 0; i < numImages; i++) {
+            name<VK_OBJECT_TYPE_IMAGE>(m_mirrorSwapChain.images[i], std::format("mirror_swapchain_image_{}", i));
+        }
         std::vector<VkImageLayout> oldLayouts(numImages, VK_IMAGE_LAYOUT_UNDEFINED);
         std::vector<VkImageLayout> newLayouts(numImages, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
         transition(m_mirrorSwapChain.images, oldLayouts, newLayouts);
@@ -597,7 +600,7 @@ namespace vr {
 
             vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                                  VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0,
-                                 nullptr, 0, nullptr, 1, barriers.data());
+                                 nullptr, 0, nullptr, barriers.size(), barriers.data());
         });
     }
 

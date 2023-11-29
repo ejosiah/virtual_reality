@@ -368,3 +368,8 @@ template<>
 inline VkFenceCreateInfo makeStruct<VkFenceCreateInfo>() {
     return { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
 }
+
+template<>
+inline VkDebugUtilsObjectNameInfoEXT makeStruct<VkDebugUtilsObjectNameInfoEXT>() {
+    return { VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
+}

@@ -183,6 +183,23 @@ namespace vr {
         void shutdownMirrorWindow() final;
 #endif
 
+
+        template<VkObjectType objectType>
+        void name(void* objPtr, std::string_view name) {
+#ifndef NDEBUG
+#ifndef XR_DEBUG
+#ifdef VK_DEBUG
+            auto info = makeStruct<VkDebugUtilsObjectNameInfoEXT>();
+            info.objectType = objectType;
+            info.objectHandle = (uint64_t)objPtr;
+            info.pObjectName = name.data();
+            vkSetDebugUtilsObjectNameEXT(m_device, &info);
+#endif
+#endif
+#endif
+        }
+
+
     private:
         void pickDevice();
 
@@ -216,16 +233,18 @@ namespace vr {
         std::vector<VkCommandBuffer> m_commandBuffers;
         uint32_t numCommandBuffers{};
         bool initialized{false};
-        std::vector<Buffer> m_buffers;
-        std::vector<VkCommandPool> m_commandPools;
-        std::vector<VkDescriptorPool> m_descriptorPools;
-        std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;
-        std::vector<VkPipelineLayout> m_pipelineLayouts;
-        std::vector<VkPipeline> m_pipelines;
-        std::vector<VkRenderPass> m_renderPasses;
-        std::vector<VkFramebuffer> m_frameBuffers;
-        std::vector<Image> m_images;
-        std::vector<VkImageView> m_imageViews;
+        mutable std::vector<Buffer> m_buffers;
+        mutable std::vector<Mapping> m_mappings;
+        mutable std::vector<VkCommandPool> m_commandPools;
+        mutable std::vector<VkDescriptorPool> m_descriptorPools;
+        mutable std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;
+        mutable std::vector<VkPipelineLayout> m_pipelineLayouts;
+        mutable std::vector<VkPipeline> m_pipelines;
+        mutable std::vector<VkRenderPass> m_renderPasses;
+        mutable std::vector<VkFramebuffer> m_frameBuffers;
+        mutable std::vector<Image> m_images;
+        mutable std::vector<VkImageView> m_imageViews;
+        mutable std::vector<VkShaderModule> m_shaders;
 
 #ifdef USE_MIRROR_WINDOW
         Window m_window{};
