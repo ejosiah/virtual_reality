@@ -42,7 +42,8 @@ struct CheckerboardRenderer : public vr::VulkanRenderer {
 
         VkDeviceSize size = swapChain.width * swapChain.height * 4;
         auto buffer = graphicsService().createStagingBuffer(size);
-        auto colors = graphicsService().map<Color>(buffer);
+        auto mapping = graphicsService().map(buffer);
+        auto colors = mapping.as<Color>();
         const auto w = int(swapChain.width);
         const auto h = int(swapChain.height);
 
@@ -80,7 +81,6 @@ struct CheckerboardRenderer : public vr::VulkanRenderer {
             m_frameEnd.layers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader *>(&layer));
         }
 
-        graphicsService().unmap(buffer);
         graphicsService().release(buffer);
     }
 

@@ -64,14 +64,14 @@ public:
         debugBuffer = graphicsService().createMappableBuffer(1_kb, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
         auto size = BYTE_SIZE(cube.vertices);
-        graphicsService().map(staging);
-        std::memcpy(staging.mapping, cube.vertices.data(), size);
+        auto mapping = graphicsService().map(staging);
+        std::memcpy(mapping._, cube.vertices.data(), size);
         m_cube.vertex = graphicsService().createDeviceLocalBuffer(size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
         graphicsService().copy(staging, m_cube.vertex, size);
 
         size = BYTE_SIZE(cube.indices);
         m_cube.index = graphicsService().createDeviceLocalBuffer(size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-        std::memcpy(staging.mapping, cube.indices.data(), size);
+        std::memcpy(mapping._, cube.indices.data(), size);
         graphicsService().copy(staging, m_cube.index, size);
         graphicsService().release(staging);
 
@@ -545,7 +545,8 @@ public:
         static bool once = true;
         if(renders > 10 && once) {
             once = false;
-            auto vertices = graphicsService().map<glm::vec4>(debugBuffer);
+            auto mapping = graphicsService().map(debugBuffer);
+            auto vertices = mapping.as<glm::vec4>();
             for(auto i = 0; i < 24; i++){
                 const auto& v = vertices[i];
                 spdlog::error("[{}, {}, {}, {}]", v.x, v.y, v.z, v.w);

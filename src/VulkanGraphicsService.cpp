@@ -169,8 +169,12 @@ namespace vr {
     }
 
     void VulkanGraphicsService::release(Buffer buffer) {
-        if(buffer.mapping != nullptr) {
-            unmap(buffer);
+        auto mappingItr = std::find_if(m_mappings.begin(), m_mappings.end(), [&buffer](const auto& mapping){
+            return mapping.allocation == buffer.allocation;
+        });
+        if(mappingItr != m_mappings.end()) {
+            mappingItr->unmap();
+            m_mappings.erase(mappingItr);
         }
         auto itr = std::find_if(m_buffers.begin(), m_buffers.end(), [&buffer](const auto& buf) {
             return buf.handle == buffer.handle;
@@ -323,6 +327,10 @@ namespace vr {
         vkDestroyCommandPool(m_device, m_scopedCommandPool, nullptr);
         for(auto commandPool : m_commandPools) {
             vkDestroyCommandPool(m_device, commandPool, nullptr);
+        }
+
+        for(auto& mapping : m_mappings) {
+            mapping.unmap();
         }
 
         for(const auto& buffer : m_buffers) {

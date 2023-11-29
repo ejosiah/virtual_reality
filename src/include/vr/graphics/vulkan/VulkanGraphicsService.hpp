@@ -27,7 +27,11 @@ namespace vr {
     template<typename T>
     struct Link {
         T* cpu{};
-        Buffer gpu{};
+        Mapping gpu{};
+
+        void unlink() {
+            gpu.unmap();
+        }
     };
 
     struct CopyRequest {
@@ -82,16 +86,15 @@ namespace vr {
 
         static std::shared_ptr<GraphicsService> shared(const Context& context);
 
-        template<typename T = void>
-        T* map(Buffer& buffer) {
-            vmaMapMemory(allocator.allocator, buffer.allocation, &buffer.mapping);
-            return reinterpret_cast<T*>(buffer.mapping);
+        Mapping map(const Buffer& buffer) const {
+            Mapping mapping{};
+            mapping.allocation = buffer.allocation;
+            mapping.allocator = allocator.allocator;
+            vmaMapMemory(allocator.allocator, buffer.allocation, &mapping._);
+            m_mappings.push_back(mapping);
+            return mapping;
         }
 
-        void unmap(Buffer& buffer) const {
-            vmaUnmapMemory(allocator.allocator, buffer.allocation);
-            buffer.mapping = nullptr;
-        }
 
         void scoped(auto&& operation, const std::vector<WaitSemaphore>& waits = {}, const std::vector<VkSemaphore>& signals = {}) {
             auto allocateInfo = makeStruct<VkCommandBufferAllocateInfo>();
@@ -139,15 +142,11 @@ namespace vr {
 
         template<typename T>
         Link<T> link(VkBufferUsageFlagBits usage, uint32_t count = 1) {
+            auto buffer = createMappableBuffer(sizeof(T) * count, usage);
             Link<T> link{};
-            link.gpu = createMappableBuffer(sizeof(T) * count, usage);
-            link.cpu = map<T>(link.gpu);
+            link.gpu = map(buffer);
+            link.cpu = link.gpu.template as<T>();
             return link;
-        }
-
-        template<typename T>
-        void unlink(Link<T> link) {
-            unmap(link.cpu);
         }
 
         VkDescriptorPool createDescriptorPool(const VkDescriptorPoolCreateInfo& createInfo);
