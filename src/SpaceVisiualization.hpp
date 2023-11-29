@@ -21,7 +21,6 @@ using DepthBuffer = FrameBufferAttachment;
 
 struct FrameBuffer {
     ColorBuffer color;
-    DepthBuffer  depth;
     VkFramebuffer _{};
 };
 
@@ -97,25 +96,25 @@ public:
                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                 },
-//                {
-//                    0,
-//                    m_frameBuffers[0].front().depth.format,
-//                    VK_SAMPLE_COUNT_1_BIT,
-//                    VK_ATTACHMENT_LOAD_OP_CLEAR,
-//                    VK_ATTACHMENT_STORE_OP_STORE,
-//                    VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-//                    VK_ATTACHMENT_STORE_OP_DONT_CARE,
-//                    VK_IMAGE_LAYOUT_UNDEFINED,
-//                    VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-//                }
+                {
+                    0,
+                    depthFormat,
+                    VK_SAMPLE_COUNT_1_BIT,
+                    VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    VK_ATTACHMENT_STORE_OP_STORE,
+                    VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                    VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                    VK_IMAGE_LAYOUT_UNDEFINED,
+                    VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+                }
         };
 
         VkAttachmentReference colorAttachment{0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-//        VkAttachmentReference depthAttachment{1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
+        VkAttachmentReference depthAttachment{1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
         VkSubpassDescription subPassDescription{ 0, VK_PIPELINE_BIND_POINT_GRAPHICS};
         subPassDescription.colorAttachmentCount = 1;
         subPassDescription.pColorAttachments = &colorAttachment;
-//        subPassDescription.pDepthStencilAttachment = &depthAttachment;
+        subPassDescription.pDepthStencilAttachment = &depthAttachment;
 
         VkSubpassDependency dependency{};
 
@@ -157,32 +156,33 @@ public:
                 m_frameBuffers[vi][i].color.image.handle = swapChain.images[i].image;
 
                 createViewInfo.image = swapChain.images[i].image;
+                createViewInfo.format = swapChain.format;
+                createViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
                 createViewInfo.subresourceRange.baseArrayLayer = vi;
                 m_frameBuffers[vi][i].color.imageView = graphicsService().createImageView(createViewInfo);
             }
 
 
-//            for (int i = 0; i < numImages; i++) {
-//                m_frameBuffers[vi][i].depth.format = VK_FORMAT_D32_SFLOAT_S8_UINT;
-//                auto createImageInfo = makeStruct<VkImageCreateInfo>();
-//                createImageInfo.imageType = VK_IMAGE_TYPE_2D;
-//                createImageInfo.format = m_frameBuffers[vi][i].depth.format;
-//                createImageInfo.extent = {swapChain.width, swapChain.height, 1};
-//                createImageInfo.mipLevels = 1;
-//                createImageInfo.arrayLayers = 1;
-//                createImageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-//                createImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-//                createImageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-//                createImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-//                createImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-//
-//                m_frameBuffers[vi][i].depth.image = graphicsService().creatImage(createImageInfo);
-//
-//                createViewInfo.format = m_frameBuffers[vi][i].depth.format;
-//                createViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-//                createViewInfo.image = m_frameBuffers[vi][i].depth.image.handle;
-//                m_frameBuffers[vi][i].depth.imageView = graphicsService().createImageView(createViewInfo);
-//            }
+            m_depthBuffers[vi].format = depthFormat;
+            auto createImageInfo = makeStruct<VkImageCreateInfo>();
+            createImageInfo.imageType = VK_IMAGE_TYPE_2D;
+            createImageInfo.format = depthFormat;
+            createImageInfo.extent = {swapChain.width, swapChain.height, 1};
+            createImageInfo.mipLevels = 1;
+            createImageInfo.arrayLayers = 1;
+            createImageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+            createImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+            createImageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+            createImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            createImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+            m_depthBuffers[vi].image = graphicsService().creatImage(createImageInfo);
+
+            createViewInfo.format = m_depthBuffers[vi].format;
+            createViewInfo.image = m_depthBuffers[vi].image.handle;
+            createViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+            createViewInfo.subresourceRange.baseArrayLayer = 0;
+            m_depthBuffers[vi].imageView = graphicsService().createImageView(createViewInfo);
         }
     }
 
@@ -191,10 +191,11 @@ public:
         const auto numImages = swapChain.images.size();
 
         for (auto vi = 0; vi < 2; vi++) {
+            auto depthAttachment = m_depthBuffers[vi].imageView;
             for (int i = 0; i < numImages; i++) {
-                std::array<VkImageView, 1> attachments{};
+                std::array<VkImageView, 2> attachments{};
                 attachments[0] = m_frameBuffers[vi][i].color.imageView;
-//                attachments[1] = m_frameBuffers[vi][i].depth.imageView;
+                attachments[1] = depthAttachment;
 
                 auto createInfo = makeStruct<VkFramebufferCreateInfo>();
                 createInfo.renderPass = m_renderPass;
@@ -337,8 +338,8 @@ public:
 
         // Depth and Stencil state
         auto depthStencilState = makeStruct<VkPipelineDepthStencilStateCreateInfo>();
-        depthStencilState.depthTestEnable = VK_FALSE;
-        depthStencilState.depthWriteEnable = VK_FALSE;
+        depthStencilState.depthTestEnable = VK_TRUE;
+        depthStencilState.depthWriteEnable = VK_TRUE;
         depthStencilState.depthCompareOp = VK_COMPARE_OP_LESS;
         depthStencilState.minDepthBounds = 0;
         depthStencilState.maxDepthBounds = 1;
@@ -639,6 +640,8 @@ private:
     VkDescriptorSet m_descriptorSet{};
     VkRenderPass m_renderPass{};
     std::array<std::vector<FrameBuffer>, 2> m_frameBuffers;
+    std::array<DepthBuffer, 2> m_depthBuffers;
+    static constexpr VkFormat depthFormat{ VK_FORMAT_D32_SFLOAT_S8_UINT };
     std::vector<VkCommandBuffer> m_commandBuffers;
     mutable XrCompositionLayerProjection m_projectionLayer{ XR_TYPE_COMPOSITION_LAYER_PROJECTION };
     std::array<XrCompositionLayerProjectionView, 2> m_views {{
