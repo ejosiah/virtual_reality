@@ -4,11 +4,18 @@
 #include "vr/Enumerators.hpp"
 #include "vr/ToString.hpp"
 
+#include <GLFW/glfw3.h>
+
 #include <stdexcept>
 #include <thread>
 #include <chrono>
 
 namespace vr {
+
+    void OnHostKeyPress(GLFWwindow *window, int key, int scancode, int action, int mods) {
+        auto session = reinterpret_cast<SessionService*>(glfwGetWindowUserPointer(window));
+        session->handleHostKeyPress(key, scancode, action, mods);
+    }
 
     SessionService::SessionService(
             const Context &context
@@ -38,7 +45,12 @@ namespace vr {
         createSwapChain();
         createMainViewSpace();
         initRenderer();
-        m_currentState = XR_SESSION_STATE_UNKNOWN;
+#ifdef USE_MIRROR_WINDOW
+        m_graphics->initMirrorWindow();
+        auto window = m_graphics->window();
+        glfwSetWindowUserPointer(window._, this);
+        glfwSetKeyCallback(window._, OnHostKeyPress);
+#endif
     }
 
     void SessionService::createSession() {
@@ -83,6 +95,10 @@ namespace vr {
     
     void SessionService::processFrame() {
         m_states[m_currentState]->processFrame();
+        if(m_terminationRequested) {
+            stop();
+            m_currentState = XR_SESSION_STATE_EXITING;
+        }
     }
 
     void SessionService::createSwapChain() {
@@ -124,6 +140,16 @@ namespace vr {
         auto [result, formats] = enumerate<int64_t>(m_session, xrEnumerateSwapchainFormats);
         CHECK_XR(result);
         return std::any_of(formats.begin(), formats.end(), [format](auto supportedFormat){ return supportedFormat == format; });
+    }
+
+    void SessionService::handleHostKeyPress(int key, int scancode, int action, int mods) {
+        if(action == GLFW_RELEASE && key == GLFW_KEY_ESCAPE) {
+            terminate();
+        }
+    }
+
+    void SessionService::terminate() {
+        m_terminationRequested = true;
     }
 
     void SessionStateRunning::processFrame() {

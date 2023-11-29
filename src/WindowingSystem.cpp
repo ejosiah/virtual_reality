@@ -44,4 +44,8 @@ namespace vr {
         glfwDestroyWindow(window._);
         window._ = nullptr;
     }
+
+    void WindowingSystem::pollEvents() {
+        glfwPollEvents();
+    }
 }

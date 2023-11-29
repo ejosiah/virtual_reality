@@ -30,6 +30,8 @@ namespace vr {
 
         static void shutdown();
 
+        static void pollEvents();
+
     private:
 
 

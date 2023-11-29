@@ -40,6 +40,10 @@ namespace vr {
 
         void stop();
 
+        void terminate();
+
+        void handleHostKeyPress(int key, int scancode, int action, int mods);
+
         bool imageFormatIsSupported(uint64_t format);
 
         [[nodiscard]] bool isRunning() const {
@@ -76,6 +80,7 @@ namespace vr {
         std::vector<XrView> m_views;
         XrSpace m_mainViewSpace{};
         std::map<std::string, XrSpace> m_spaces;
+        bool m_terminationRequested{};
     };
 
     class SessionState {

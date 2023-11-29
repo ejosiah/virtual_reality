@@ -199,6 +199,8 @@ namespace vr {
 #endif
         }
 
+        Window &window() override;
+
 
     private:
         void pickDevice();

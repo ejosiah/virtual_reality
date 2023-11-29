@@ -109,7 +109,17 @@ struct CheckerboardRenderer : public vr::VulkanRenderer {
                         .format(VK_FORMAT_R8G8B8A8_SRGB)
                         .arraySize(2)
                         .width(2048)
-                        .height(2048));
+                        .height(2048)
+                    ).addSwapChain(
+                        vr::SwapchainSpecification()
+                            .name("depth_buffer")
+                            .usage()
+                                .depthStencilAttachment()
+                            .format(VK_FORMAT_D32_SFLOAT_S8_UINT)
+                            .arraySize(2)
+                            .width(2048)
+                            .height(2048)
+                    );
     }
 
     vr::cstring name() override {

@@ -605,7 +605,7 @@ public:
                 .usage()
                     .colorAttachment()
                 .format(VK_FORMAT_R8G8B8A8_SRGB)
-                .arraySize(2)
+                .arraySize(4)
                 .width(2064)
                 .height(2096));
     }

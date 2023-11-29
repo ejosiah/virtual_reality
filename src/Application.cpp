@@ -49,12 +49,12 @@ namespace vr {
             SessionService session{ *context, m_sessionConfig, graphicsService, m_renderer };
             session.init();
 
-#ifdef USE_MIRROR_WINDOW
-            graphicsService->initMirrorWindow();
-#endif
-
             auto event = makeStruct<XrEventDataBuffer>();
             while(session.isRunning()) {
+
+#ifdef USE_MIRROR_WINDOW
+                WindowingSystem::pollEvents();
+#endif
 
                 if(pollEvents(*context, event)) {
                     switch (event.type) {

@@ -2,6 +2,7 @@
 
 #include "vr/Context.hpp"
 #include "vr/Models.hpp"
+#include "vr/WindowingSystem.hpp"
 
 #include <openxr/openxr.h>
 #include <glm/glm.hpp>
@@ -41,6 +42,8 @@ namespace vr {
         virtual void mirror(const ImageId& imageId) {}
 
         virtual void shutdownMirrorWindow() {};
+
+        virtual Window& window() = 0;
 #endif
 
     protected:

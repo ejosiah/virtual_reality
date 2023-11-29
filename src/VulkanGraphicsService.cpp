@@ -611,6 +611,10 @@ namespace vr {
         });
     }
 
+    Window &VulkanGraphicsService::window() {
+        return m_window;
+    }
+
 #endif
 }
 
