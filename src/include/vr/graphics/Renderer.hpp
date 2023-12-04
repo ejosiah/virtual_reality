@@ -3,6 +3,7 @@
 #include "Types.hpp"
 #include "vr/Models.hpp"
 #include "Graphics.hpp"
+#include "vr/Action.hpp"
 
 #include <utility>
 #include <memory>
@@ -18,8 +19,14 @@ namespace vr {
             m_graphics = std::move(graphics);
         }
 
-        virtual void set(const std::vector<SpaceLocation>& spaceLocations) {
+        virtual void beginFrame() {}
 
+        virtual void endFrame() {}
+
+        virtual void set(const std::vector<SpaceLocation>& spaceLocations) {}
+
+        virtual std::vector<Vibrate> set(const ActionSet& actionSet) {
+            return {};
         }
 
         virtual void init() {}
@@ -31,6 +38,8 @@ namespace vr {
         virtual FrameEnd paused(const FrameInfo &frameInfo) = 0;
 
         virtual FrameEnd render(const FrameInfo &frameInfo) = 0;
+
+        virtual std::string activeActionSets() { return "*"; };
 
     protected:
         std::shared_ptr<GraphicsService> m_graphics;

@@ -6,9 +6,12 @@
 #include "vr/SessionConfig.hpp"
 #include "geom/Geometry.hpp"
 #include "xform/xforms.hpp"
+#include "vr/Models.hpp"
 
 #include <algorithm>
 #include <array>
+
+enum Hand : uint32_t { LEFT = 0, RIGHT };
 
 struct FrameBufferAttachment {
     vr::Image image;
@@ -35,8 +38,9 @@ struct Mvp{
     glm::mat4 projection{1};
 };
 
-using Camera = vr::Link<CameraType>;
-using Transforms = vr::Link<glm::mat4>;
+struct Cube {
+    vr::Transform transform;
+};
 
 struct SpaceVisualization : public vr::VulkanRenderer {
 public:
@@ -44,7 +48,6 @@ public:
 
     void init() override {
         createCubes();
-        initCamera();
         createFrameBufferAttachments();
         createRenderPass();
         createFrameBuffer();
@@ -74,14 +77,6 @@ public:
         std::memcpy(mapping._, cube.indices.data(), size);
         graphicsService().copy(staging, m_cube.index, size);
         graphicsService().release(staging);
-
-        m_instances.transforms = graphicsService().link<glm::mat4>(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, numInstances);
-        m_instances.transforms.cpu[0] = glm::translate(glm::mat4(1), {0, 0, -2});
-        models.resize(numInstances);
-    }
-
-    void initCamera() {
-        m_camera = graphicsService().link<CameraType>(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
     }
 
     void createRenderPass() {
@@ -389,43 +384,8 @@ public:
     }
 
     void createCommandBuffer() {
-//        const auto& swapChain = graphicsService().getSwapChain("main");
-//        const auto numImages = swapChain.images.size();
         auto cmdBuffers = graphicsService().allocateCommandBuffers(2);
         m_commandBuffers = std::vector<VkCommandBuffer>(cmdBuffers.begin(), cmdBuffers.end());
-//
-//        for(auto i = 0; i < numImages; ++i) {
-//            auto commandBuffer = commandBuffers[i];
-//            auto beginInfo = makeStruct<VkCommandBufferBeginInfo>();
-//            vkBeginCommandBuffer(commandBuffer, &beginInfo);
-//
-//            std::array<VkClearValue, 2> clearValues{};
-//            clearValues[0].color = {0.184313729f, 0.309803933f, 0.309803933f, 1.f};
-//            clearValues[1].depthStencil = {1.0, 0u};
-//            auto renderPassInfo = makeStruct<VkRenderPassBeginInfo>();
-//            renderPassInfo.renderPass = m_renderPass;
-//            renderPassInfo.framebuffer = m_frameBuffers[i]._;
-//            renderPassInfo.renderArea = {{0, 0}, {swapChain.width, swapChain.height}};
-//            renderPassInfo.clearValueCount = 2;
-//            renderPassInfo.pClearValues = clearValues.data();
-//
-//            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-//
-//            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline._);
-//            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline.layout
-//                                    , 0, 1, &m_descriptorSet, 0, VK_NULL_HANDLE);
-//
-//            VkDeviceSize offset = 0;
-//            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_cube.vertex.handle, &offset);
-//            vkCmdBindIndexBuffer(commandBuffer, m_cube.index.handle, 0, VK_INDEX_TYPE_UINT32);
-//            uint32_t indexCount = m_cube.index.info.size / sizeof(uint32_t);
-//            vkCmdDrawIndexed(commandBuffer, indexCount, numInstances, 0, 0, 0);
-//
-//            vkCmdEndRenderPass(commandBuffer);
-//            vkEndCommandBuffer(commandBuffer);
-//
-//            m_commandBuffers.push_back(commandBuffer);
-//        }
     }
 
     void setupViews() {
@@ -444,14 +404,50 @@ public:
         m_projectionLayer.views = m_views.data();
     }
 
+    void beginFrame() override {
+        m_cubes.clear();
+    }
 
-    void set(const std::vector<vr::SpaceLocation> &spaceLocations) override {
-        for(auto i = 0; i < spaceLocations.size(); ++i) {
-            auto spaceLocation = spaceLocations[i];
-            spaceLocation.pose.scale = glm::vec3(0.25);
-            m_instances.transforms.cpu[i] = vr::toMatrix(spaceLocation.pose);
-            models[i] = vr::toMatrix(spaceLocation.pose);
+    void set(const std::vector<vr::SpaceLocation> &spaceLocations) final {
+        Cube cube{};
+        for(const auto & spaceLocation : spaceLocations) {
+            cube.transform.pose = spaceLocation.pose;
+            cube.transform.scale = glm::vec3(0.25);
+            m_cubes.push_back(cube);
         }
+    }
+
+    std::vector<vr::Vibrate> set(const vr::ActionSet &actionSet) final {
+        std::vector<vr::Vibrate> vibrations{};
+        if(actionSet.get("left_hand_squeeze").isActive) {
+            auto value = actionSet.get("left_hand_squeeze").value<float>();
+            handScale[Hand::LEFT] = 1.0f - 0.5f * value;
+
+            if(value > 0.9) {
+                vibrations.push_back({"vibrate_left"});
+            }
+        }
+        if(actionSet.get("right_hand_squeeze").isActive) {
+            auto value = actionSet.get("right_hand_squeeze").value<float>();
+            handScale[Hand::RIGHT] = 1.0f - 0.5f * value;
+            if(value > 0.9) {
+                vibrations.push_back({"vibrate_right"});
+            }
+        }
+
+        Cube cube{};
+        if(actionSet.get("left_hand_pose").isActive) {
+            cube.transform.pose = actionSet.get("left_hand_pose").value<vr::Pose>();
+            cube.transform.scale = glm::vec3(0.1) * handScale[Hand::LEFT];
+            m_cubes.push_back(cube);
+        }
+        if(actionSet.get("right_hand_pose").isActive) {
+            cube.transform.pose = actionSet.get("right_hand_pose").value<vr::Pose>();
+            cube.transform.scale = glm::vec3(0.1) * handScale[Hand::RIGHT];
+            m_cubes.push_back(cube);
+        }
+
+        return vibrations;
     }
 
     vr::FrameEnd paused(const vr::FrameInfo &frameInfo) override {
@@ -474,27 +470,16 @@ public:
 
     void renderCubes(const vr::FrameInfo &frameInfo) {
         const auto& views = frameInfo.viewInfo.views;
-//        m_camera.cpu->view = glm::inverse(vr::toMatrix(view.pose));
-//        m_camera.cpu->projection = graphicsService().projection(view.fov, 0.1, 100);
-//        auto commandBuffer = m_commandBuffers[frameInfo.imageId.imageIndex];
-//
-//        auto submitInfo = makeStruct<VkSubmitInfo>();
-//        submitInfo.commandBufferCount = 1;
-//        submitInfo.pCommandBuffers = &commandBuffer;
-//        graphicsService().submitToGraphicsQueue(submitInfo);
 
-        static int renders = 0;
         for (auto vi = 0; vi < views.size(); ++vi) {
             auto& view = views[vi];
             const auto &swapChain = graphicsService().getSwapChain("main");
             mvp.view = glm::inverse(vr::toMatrix(view.pose));
             mvp.projection = graphicsService().projection(view.fov, 0.05, 100);
 
-            renders = 0;
             auto commandBuffer = m_commandBuffers[vi];
             auto beginInfo = makeStruct<VkCommandBufferBeginInfo>();
             vkBeginCommandBuffer(commandBuffer, &beginInfo);
-            //        graphicsService().scoped([&](auto commandBuffer) {
             std::array<VkClearValue, 2> clearValues{};
             clearValues[0].color = {0.184313729f, 0.309803933f, 0.309803933f, 1.f};
             clearValues[1].depthStencil = {1.0, 0u};
@@ -517,18 +502,8 @@ public:
             vkCmdBindIndexBuffer(commandBuffer, m_cube.index.handle, 0, VK_INDEX_TYPE_UINT32);
             uint32_t indexCount = m_cube.index.info.size / sizeof(uint32_t);
 
-            for (auto i = 0; i < numInstances; i++) {
-                mvp.model = models[i];
-                glm::mat4 lmvp = mvp.projection * mvp.view * mvp.model;
-                glm::vec4 wPos = mvp.model * glm::vec4(0, 0, 0, 1);
-                glm::vec4 vPos = mvp.view * wPos;
-                glm::vec4 cPos = lmvp * glm::vec4(0, 0, 0, 1);
-                cPos /= cPos.w;
-                //                if(renders < 10) {
-                //                    spdlog::error("\nworld pos [{}, {}, {}]\nview pos [{}, {}, {}]\nclip pos [{}, {}, {}]", wPos.x, wPos.y, wPos.z, vPos.x,
-                //                                  vPos.y, vPos.z, cPos.x, cPos.y, cPos.z);
-                //                }
-                renders++;
+            for (const auto& cube : m_cubes) {
+                mvp.model = static_cast<glm::mat4>(cube.transform);
                 vkCmdPushConstants(commandBuffer, m_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mvp),
                                    &mvp.model);
                 vkCmdDrawIndexed(commandBuffer, indexCount, 1, 0, 0, 0);
@@ -540,18 +515,7 @@ public:
         submitInfo.commandBufferCount = m_commandBuffers.size();
         submitInfo.pCommandBuffers = m_commandBuffers.data();
         graphicsService().submitToGraphicsQueue(submitInfo);
-//        });
 
-        static bool once = true;
-        if(renders > 10 && once) {
-            once = false;
-            auto mapping = graphicsService().map(debugBuffer);
-            auto vertices = mapping.as<glm::vec4>();
-            for(auto i = 0; i < 24; i++){
-                const auto& v = vertices[i];
-                spdlog::error("[{}, {}, {}, {}]", v.x, v.y, v.z, v.w);
-            }
-        }
     }
 
     static vr::SessionConfig session() {
@@ -599,6 +563,17 @@ public:
                         .translate(2, 0.5, -2)
                         .rotateInverseY(60)
             )
+            .addActionSet(
+                vr::ActionSetSpecification()
+                    .name("main_action_set")
+                    .description("main action set")
+                    .addAction("left_hand_pose", XR_ACTION_TYPE_POSE_INPUT, "/user/hand/left/input/grip/pose", "left hand grip")
+                    .addAction("right_hand_pose", XR_ACTION_TYPE_POSE_INPUT, "/user/hand/right/input/grip/pose", "right hand grip")
+                    .addAction("left_hand_squeeze", XR_ACTION_TYPE_FLOAT_INPUT, "/user/hand/left/input/squeeze/value", "left hand squeeze")
+                    .addAction("right_hand_squeeze", XR_ACTION_TYPE_FLOAT_INPUT, "/user/hand/right/input/squeeze/value", "right hand squeeze")
+                    .addAction("vibrate_left", XR_ACTION_TYPE_VIBRATION_OUTPUT, "/user/hand/left/output/haptic", "vibrate left hand")
+                    .addAction("vibrate_right", XR_ACTION_TYPE_VIBRATION_OUTPUT, "/user/hand/right/output/haptic", "vibrate right hand")
+             )
             .addSwapChain(
                 vr::SwapchainSpecification()
                 .name("main")
@@ -627,15 +602,10 @@ private:
     vr::Buffer debugBuffer;
 
     struct {
-        Transforms transforms;
-    } m_instances;
-
-    struct {
         VkPipelineLayout layout;
         VkPipeline _;
     } m_pipeline{};
 
-    Camera m_camera;
     VkDescriptorPool m_pool{};
     VkDescriptorSetLayout m_descriptorSetLayout{};
     VkDescriptorSet m_descriptorSet{};
@@ -649,7 +619,7 @@ private:
          {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW},
          {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW}
      }};
-    static constexpr uint32_t numInstances{7};
-    std::vector<glm::mat4> models;
+    std::vector<Cube> m_cubes;
     Mvp mvp{};
+    std::array<float, 2> handScale{1, 1};
 };

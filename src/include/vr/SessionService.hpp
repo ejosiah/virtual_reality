@@ -14,6 +14,18 @@
 
 namespace vr {
 
+    struct ActionData {
+        XrPath path;
+        XrActionType type;
+        XrAction _;
+    };
+
+    struct ActionSetBinding {
+        XrActionSet xrActionSet{};
+        ActionSet& actionSet;
+        std::map<std::string, ActionData> actions;
+    };
+
     class SessionService {
     public:
         friend class SessionState;
@@ -54,11 +66,17 @@ namespace vr {
             return m_currentState == XR_SESSION_STATE_EXITING;
         }
 
+        const XrSession get() const {
+            return m_session;
+        }
+
         
     private:
         void createSession();
 
         void createReferenceSpaces();
+
+        void setupActions();
 
         void createSwapChain();
 
@@ -78,9 +96,13 @@ namespace vr {
         XrSessionState m_currentState{XR_SESSION_STATE_UNKNOWN};
         std::unordered_map<XrSessionState, std::unique_ptr<SessionState>> m_states;
         std::vector<XrView> m_views;
-        XrSpace m_mainViewSpace{};
+        XrSpace m_baseSpace{};
         std::map<std::string, XrSpace> m_spaces;
         bool m_terminationRequested{};
+        std::vector<ActionSetBinding> m_actionSetBindings;
+        std::vector<ActionSet> m_actionSets;
+        std::vector<XrActiveActionSet> m_activeActionSets;
+        std::map<std::string, XrSpace> m_actionSpaces;
     };
 
     class SessionState {
@@ -113,9 +135,16 @@ namespace vr {
         explicit SessionStateRunning(SessionService& sessionService)
         : SessionState(sessionService) {};
 
-        void processFrame() final;
+        virtual void beginFrame();
+
+        void processFrame() override;
+
+        virtual void endFrame();
 
         void handle(const XrEventDataSessionStateChanged &event) final;
+
+    protected:
+        XrFrameState m_frameState{ XR_TYPE_FRAME_STATE };
 
     };
 
@@ -170,6 +199,10 @@ namespace vr {
 
         [[nodiscard]]
         XrSessionState state() const final { return XR_SESSION_STATE_FOCUSED; }
+
+        void beginFrame() final {};
+
+        void processFrame() final;
 
         FrameEnd frameLoop(const FrameInfo &frameInfo) final;
     };

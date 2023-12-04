@@ -44,6 +44,7 @@ namespace vr {
         createReferenceSpaces();
         createSwapChain();
         createMainViewSpace();
+        setupActions();
         initRenderer();
 #ifdef USE_MIRROR_WINDOW
         m_graphics->initMirrorWindow();
@@ -79,7 +80,7 @@ namespace vr {
         createInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
         createInfo.poseInReferenceSpace.position = {0, 0, 0};
         createInfo.poseInReferenceSpace.orientation = {0, 0, 0, 1};
-        LOG_ERROR(m_ctx.instance, xrCreateReferenceSpace(m_session, &createInfo, &m_mainViewSpace))
+        LOG_ERROR(m_ctx.instance, xrCreateReferenceSpace(m_session, &createInfo, &m_baseSpace))
     }
 
     void SessionService::initRenderer() {
@@ -152,6 +153,86 @@ namespace vr {
         m_terminationRequested = true;
     }
 
+    void SessionService::setupActions() {
+        if(m_config._actionSets.empty()){
+            spdlog::info("No action sets to configure");
+            return;
+        }
+        std::vector<XrActionSuggestedBinding> actionSuggestedBinding;
+        std::vector<XrActionSet> actionSets;
+
+        for(const auto& spec : m_config._actionSets) {
+            auto createInfo = makeStruct<XrActionSetCreateInfo>();
+            strcpy_s(createInfo.actionSetName, spec._name.c_str());
+
+            auto desc = spec._description.empty() ? spec._name : spec._description;
+            strcpy_s(createInfo.localizedActionSetName, desc.c_str());
+
+            XrActionSet actionSet;
+            CHECK_XR(xrCreateActionSet(m_ctx.instance, &createInfo, &actionSet));
+            actionSets.push_back(actionSet);
+
+            m_actionSets.emplace_back();
+            m_actionSetBindings.push_back({actionSet, m_actionSets.back()});
+            ActionSetBinding& binding = m_actionSetBindings.back();
+            
+            for(const auto& actionSpec : spec._actions) {
+                spdlog::debug("configuration action {} in action set {}", actionSpec.name, spec._name);
+                auto actionInfo = makeStruct<XrActionCreateInfo>();
+                strcpy_s(actionInfo.actionName, actionSpec.name.c_str());
+                strcpy_s(actionInfo.localizedActionName, actionSpec.description.c_str());
+                actionInfo.actionType = actionSpec.type;
+
+                XrAction action;
+                CHECK_XR(xrCreateAction(actionSet, &actionInfo, &action));
+                
+                if(actionSpec.type == XR_ACTION_TYPE_POSE_INPUT) {
+                    auto spaceInfo = makeStruct<XrActionSpaceCreateInfo>();
+                    spaceInfo.action = action;
+                    spaceInfo.poseInActionSpace.position = {0, 0, 0};
+                    spaceInfo.poseInActionSpace.orientation = {0, 0, 0, 1};
+                    XrSpace space;
+                    xrCreateActionSpace(m_session, &spaceInfo, &space);
+                    m_actionSpaces[actionSpec.name] = space;
+                }
+
+                XrPath path;
+                xrStringToPath(m_ctx.instance, actionSpec.path.c_str(), &path);
+                binding.actions[actionSpec.name] =  { path, actionSpec.type, action };
+                binding.actionSet.actions[actionSpec.name] = {actionSpec.name, false};
+
+                actionSuggestedBinding.push_back({action, path});
+            }
+        }
+
+        auto suggestedBindings = makeStruct<XrInteractionProfileSuggestedBinding>();
+        XrPath profile;
+//        xrStringToPath(m_ctx.instance, "/interaction_profiles/khr/simple_controller", &profile);
+        xrStringToPath(m_ctx.instance, "/interaction_profiles/oculus/touch_controller", &profile);
+        suggestedBindings.interactionProfile = profile;
+        suggestedBindings.countSuggestedBindings = actionSuggestedBinding.size();
+        suggestedBindings.suggestedBindings = actionSuggestedBinding.data();
+        LOG_ERROR(m_ctx.instance, xrSuggestInteractionProfileBindings(m_ctx.instance, &suggestedBindings));
+
+        auto attachInfo = makeStruct<XrSessionActionSetsAttachInfo>();
+        attachInfo.countActionSets = actionSets.size();
+        attachInfo.actionSets = actionSets.data();
+        LOG_ERROR(m_ctx.instance, xrAttachSessionActionSets(m_session, &attachInfo));
+
+        const auto activeSets = m_renderer->activeActionSets();
+        if(activeSets == "*"){
+            for(auto actionSet : actionSets){
+                m_activeActionSets.push_back({ actionSet, XR_NULL_PATH});
+            }
+        }else {
+            // TODO filter setA/SetB/SetC
+        }
+    }
+
+    void SessionStateRunning::beginFrame() {
+        m_sessionService.m_renderer->beginFrame();
+    }
+
     void SessionStateRunning::processFrame() {
         if(state() == XR_SESSION_STATE_UNKNOWN) {
             throw std::runtime_error{"Invalid state"};
@@ -164,12 +245,12 @@ namespace vr {
         const auto swapchain = m_sessionService.m_swapchains.front();
 
 
-        static auto frameState = makeStruct<XrFrameState>();
-        xrWaitFrame(session, XR_NULL_HANDLE, &frameState);
+        xrWaitFrame(session, XR_NULL_HANDLE, &m_frameState);
 
 
         if(XR_SUCCEEDED(xrBeginFrame(session, nullptr))) {
-            if(frameState.shouldRender){
+            if(m_frameState.shouldRender){
+                beginFrame();
                 uint32_t imageIndex;
                 xrAcquireSwapchainImage(swapchain.handle, nullptr, &imageIndex);
                 ImageId imageId{swapchain.spec._name, imageIndex};
@@ -182,8 +263,8 @@ namespace vr {
                     auto viewState = makeStruct<XrViewState>();
                     auto viewLocateInfo = makeStruct<XrViewLocateInfo>();
                     viewLocateInfo.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
-                    viewLocateInfo.displayTime = frameState.predictedDisplayTime;
-                    viewLocateInfo.space = m_sessionService.m_mainViewSpace;
+                    viewLocateInfo.displayTime = m_frameState.predictedDisplayTime;
+                    viewLocateInfo.space = m_sessionService.m_baseSpace;
                     uint32_t numViews;
                     xrLocateViews(session, &viewLocateInfo, &viewState, 0, &numViews, XR_NULL_HANDLE);
                     std::vector<XrView> views(numViews, { XR_TYPE_VIEW});
@@ -195,7 +276,7 @@ namespace vr {
                     spaceLocations.reserve(m_sessionService.m_spaces.size());
                     for(const auto& [name, space] : m_sessionService.m_spaces) {
                         auto location = makeStruct<XrSpaceLocation>();
-                        xrLocateSpace(space, m_sessionService.m_mainViewSpace, frameState.predictedDisplayTime, &location);
+                        xrLocateSpace(space, m_sessionService.m_baseSpace, m_frameState.predictedDisplayTime, &location);
                         spaceLocations.push_back({name, convert(location.pose)});
                     }
                     if(!spaceLocations.empty()) {
@@ -204,10 +285,9 @@ namespace vr {
 
                     frame = frameLoop({ imageId
                                         , {viewState, std::move(views)}
-                                        , m_sessionService.m_mainViewSpace
-                                        , frameState.predictedDisplayTime
-                                        , frameState.predictedDisplayPeriod
-                                        , static_cast<float>(swapchain.spec._width)/static_cast<float>(swapchain.spec._height)});
+                                        , m_sessionService.m_baseSpace
+                                        , m_frameState.predictedDisplayTime
+                                        , m_frameState.predictedDisplayPeriod});
 
 #ifdef USE_MIRROR_WINDOW
                     m_sessionService.m_graphics->mirror(imageId);
@@ -215,13 +295,14 @@ namespace vr {
 
                 }
                 xrReleaseSwapchainImage(swapchain.handle, nullptr);
+                endFrame();
             }
 
             XrFrameEndInfo endFrameInfo = makeStruct<XrFrameEndInfo>();
             endFrameInfo.environmentBlendMode = frame.blendMode;
             endFrameInfo.layerCount = frame.layers.size();
             endFrameInfo.layers = frame.layers.data();
-            endFrameInfo.displayTime = frameState.predictedDisplayTime;
+            endFrameInfo.displayTime = m_frameState.predictedDisplayTime;
             xrEndFrame(session, &endFrameInfo);
         }
 
@@ -234,6 +315,10 @@ namespace vr {
         }else {
             SessionState::handle(event);
         }
+    }
+
+    void SessionStateRunning::endFrame() {
+        m_sessionService.m_renderer->endFrame();
     }
 
     void SessionIdle::handle(const XrEventDataSessionStateChanged &event) {
@@ -270,6 +355,96 @@ namespace vr {
 
     FrameEnd SessionFocused::frameLoop(const FrameInfo &frameInfo) {
         return m_sessionService.m_renderer->render(frameInfo);
+    }
+
+    void SessionFocused::processFrame() {
+        auto syncInfo = makeStruct<XrActionsSyncInfo>();
+        syncInfo.countActiveActionSets = m_sessionService.m_activeActionSets.size();
+        syncInfo.activeActionSets = m_sessionService.m_activeActionSets.data();
+        CHECK_XR(xrSyncActions(m_sessionService.m_session, &syncInfo));
+
+        const auto& activeSets = m_sessionService.m_activeActionSets;
+        const auto& session = m_sessionService.m_session;
+        const auto& actionSpaces = m_sessionService.m_actionSpaces;
+        const auto& baseSpace = m_sessionService.m_baseSpace;
+
+        m_sessionService.m_renderer->beginFrame();
+
+        for(auto& binding : m_sessionService.m_actionSetBindings) {
+            bool inActive = std::any_of(activeSets.begin(), activeSets.end(), [&binding](const auto& aSet){ return aSet.actionSet != binding.xrActionSet; });
+            if(inActive) continue;
+
+            for(auto& [name, entry] : binding.actions) {
+                assert(binding.actionSet.actions.contains(name));
+
+                const auto& [path, type, xrAction] = entry;
+
+                auto getInfo = makeStruct<XrActionStateGetInfo>();
+                getInfo.action = xrAction;
+                switch(type) {
+                    case XR_ACTION_TYPE_BOOLEAN_INPUT : {
+                        auto state = makeStruct<XrActionStateBoolean>();
+                        CHECK_XR(xrGetActionStateBoolean(session, &getInfo, &state));
+                        if(state.isActive) {
+                            binding.actionSet.actions[name].isActive = true;
+                            binding.actionSet.actions[name].changed = state.changedSinceLastSync;
+                            binding.actionSet.actions[name]._value = static_cast<bool>(state.currentState);
+                        }
+                        break;
+                    }
+                    case XR_ACTION_TYPE_FLOAT_INPUT : {
+                        auto state = makeStruct<XrActionStateFloat>();
+                        CHECK_XR(xrGetActionStateFloat(session, &getInfo, &state));
+                        if(state.isActive) {
+                            binding.actionSet.actions[name].isActive = true;
+                            binding.actionSet.actions[name].changed = state.changedSinceLastSync;
+                            binding.actionSet.actions[name]._value = state.currentState;
+                        }
+                        break;
+                    }
+                    case XR_ACTION_TYPE_VECTOR2F_INPUT : {
+                        auto state = makeStruct<XrActionStateVector2f>();
+                        CHECK_XR(xrGetActionStateVector2f(session, &getInfo, &state));
+                        if(state.isActive) {
+                            binding.actionSet.actions[name].isActive = true;
+                            binding.actionSet.actions[name].changed = state.changedSinceLastSync;
+                            binding.actionSet.actions[name]._value = glm::vec2(state.currentState.x, state.currentState.y);
+                        }
+                        break;
+                    }
+                    case XR_ACTION_TYPE_POSE_INPUT : {
+                        auto state = makeStruct<XrActionStatePose>();
+                        CHECK_XR(xrGetActionStatePose(session, &getInfo, &state));
+                        if(state.isActive) {
+                            binding.actionSet.actions[name].isActive = true;
+
+                            auto space = actionSpaces.at(name);
+                            auto location = makeStruct<XrSpaceLocation>();
+                            xrLocateSpace(space, baseSpace, m_frameState.predictedDisplayTime, &location);
+                            binding.actionSet.actions[name]._value = convert(location.pose);
+                        }
+                        break;
+                    }
+                    case XR_ACTION_TYPE_VIBRATION_OUTPUT :
+                    case XR_ACTION_TYPE_MAX_ENUM:
+                        break; // ignore non input action types
+
+                }
+            }
+            auto vibrations = m_sessionService.m_renderer->set(binding.actionSet);
+            for(const auto& vibration : vibrations) {
+                auto action = m_sessionService.m_actionSetBindings.front().actions.at(vibration.action);
+                auto info = makeStruct<XrHapticActionInfo>();
+                info.action = action._;
+                auto hapticVibration = makeStruct<XrHapticVibration>();
+                hapticVibration.duration = vibration.duration;
+                hapticVibration.frequency = vibration.frequency;
+                hapticVibration.amplitude = vibration.amplitude;
+                xrApplyHapticFeedback(m_sessionService.m_session, &info, reinterpret_cast<XrHapticBaseHeader*>(&hapticVibration));
+            }
+        }
+
+        SessionStateRunning::processFrame();
     }
 
 }

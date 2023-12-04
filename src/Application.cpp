@@ -64,8 +64,13 @@ namespace vr {
                         case XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING :
                             session.stop();
                             break;
-                        default:
-                            THROW("Event type not yet implemented!");
+                        case XR_TYPE_EVENT_DATA_INTERACTION_PROFILE_CHANGED:
+                            break;
+                        default: {
+                            char buffer[XR_MAX_STRUCTURE_NAME_SIZE];
+                            xrStructureTypeToString(context->instance, event.type, buffer);
+                            THROW(std::format("Event[{}] type not yet implemented!", buffer));
+                        }
                     }
                 }
 

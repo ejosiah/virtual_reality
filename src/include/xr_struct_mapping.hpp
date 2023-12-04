@@ -166,10 +166,82 @@ inline XrCompositionLayerProjectionView makeStruct<XrCompositionLayerProjectionV
     return { XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW };
 }
 
-
 template<>
 inline XrSpaceLocation makeStruct<XrSpaceLocation>() {
     return { XR_TYPE_SPACE_LOCATION };
+}
+
+template<>
+inline XrActionSetCreateInfo makeStruct<XrActionSetCreateInfo>() {
+    return { XR_TYPE_ACTION_SET_CREATE_INFO };
+}
+
+template<>
+inline XrActionCreateInfo makeStruct<XrActionCreateInfo>() {
+    return { XR_TYPE_ACTION_CREATE_INFO };
+}
+
+template<>
+inline XrInteractionProfileSuggestedBinding makeStruct<XrInteractionProfileSuggestedBinding>() {
+    return { XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING };
+}
+
+template<>
+inline XrSessionActionSetsAttachInfo makeStruct<XrSessionActionSetsAttachInfo>() {
+    return { XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO };
+}
+
+template<>
+inline XrActionSpaceCreateInfo makeStruct<XrActionSpaceCreateInfo>() {
+    return { XR_TYPE_ACTION_SPACE_CREATE_INFO };
+}
+
+
+template<>
+inline XrActionsSyncInfo makeStruct<XrActionsSyncInfo>() {
+    return { XR_TYPE_ACTIONS_SYNC_INFO };
+}
+
+template<>
+inline XrActionStateGetInfo makeStruct<XrActionStateGetInfo>() {
+    return { XR_TYPE_ACTION_STATE_GET_INFO };
+}
+
+template<>
+inline XrActionStateBoolean makeStruct<XrActionStateBoolean>() {
+    return { XR_TYPE_ACTION_STATE_BOOLEAN };
+}
+
+template<>
+inline XrActionStateFloat makeStruct<XrActionStateFloat>() {
+    return { XR_TYPE_ACTION_STATE_FLOAT };
+}
+
+template<>
+inline XrActionStateVector2f makeStruct<XrActionStateVector2f>() {
+    return { XR_TYPE_ACTION_STATE_VECTOR2F };
+}
+
+
+template<>
+inline XrActionStatePose makeStruct<XrActionStatePose>() {
+    return { XR_TYPE_ACTION_STATE_POSE };
+}
+
+template<>
+inline XrInteractionProfileState makeStruct<XrInteractionProfileState>() {
+    return { XR_TYPE_INTERACTION_PROFILE_STATE };
+}
+
+template<>
+inline XrHapticActionInfo makeStruct<XrHapticActionInfo>() {
+    return { XR_TYPE_HAPTIC_ACTION_INFO };
+}
+
+
+template<>
+inline XrHapticVibration makeStruct<XrHapticVibration>() {
+    return { XR_TYPE_HAPTIC_VIBRATION };
 }
 
 /***********************************************************************
