@@ -257,7 +257,7 @@ public:
         writes[0].dstBinding = 0;
         writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         writes[0].descriptorCount = 1;
-        VkDescriptorBufferInfo xformInfo{ debugBuffer.handle, 0, VK_WHOLE_SIZE};
+        VkDescriptorBufferInfo xformInfo{ debugBuffer._, 0, VK_WHOLE_SIZE};
         writes[0].pBufferInfo = &xformInfo;
 
         graphicsService().update(writes);
@@ -391,7 +391,7 @@ public:
     void setupViews() {
         const auto swapChain = graphicsService().getSwapChain("main");
         XrSwapchainSubImage subImage{
-            swapChain.swapchain,
+            swapChain._,
             {{0, 0}, {static_cast<int32_t>(swapChain.width), static_cast<int32_t>(swapChain.height)}},
             0
         };
@@ -498,8 +498,8 @@ public:
                                     &m_descriptorSet, 0, VK_NULL_HANDLE);
 
             VkDeviceSize offset = 0;
-            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_cube.vertex.handle, &offset);
-            vkCmdBindIndexBuffer(commandBuffer, m_cube.index.handle, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_cube.vertex._, &offset);
+            vkCmdBindIndexBuffer(commandBuffer, m_cube.index._, 0, VK_INDEX_TYPE_UINT32);
             uint32_t indexCount = m_cube.index.info.size / sizeof(uint32_t);
 
             for (const auto& cube : m_cubes) {

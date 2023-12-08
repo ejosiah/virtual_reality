@@ -5,7 +5,7 @@
 
 struct XrVulkanSwapChain{
     std::string name{};
-    XrSwapchain swapchain{};
+    XrSwapchain _{};
     uint32_t width{};
     uint32_t height{};
     VkFormat format;

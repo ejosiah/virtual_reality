@@ -177,7 +177,7 @@ namespace vr {
             m_mappings.erase(mappingItr);
         }
         auto itr = std::find_if(m_buffers.begin(), m_buffers.end(), [&buffer](const auto& buf) {
-            return buf.handle == buffer.handle;
+            return buf._ == buffer._;
         });
         assert(itr != m_buffers.end());
         m_buffers.erase(itr);
@@ -251,7 +251,7 @@ namespace vr {
             region.imageSubresource.mipLevel = request.mipLevel;
             region.imageSubresource.baseArrayLayer = request.arrayLayer;
             region.imageSubresource.layerCount = 1;
-            vkCmdCopyBufferToImage(commandBuffer, request.source.handle, image,
+            vkCmdCopyBufferToImage(commandBuffer, request.source._, image,
                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
             barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -282,7 +282,7 @@ namespace vr {
     void VulkanGraphicsService::copy(const Buffer &src, const Buffer &dst, VkDeviceSize size, VkDeviceSize srcOffset, VkDeviceSize dstOffset) {
         scoped([&](auto commandBuffer){
            VkBufferCopy region{srcOffset, dstOffset, size};
-            vkCmdCopyBuffer(commandBuffer, src.handle, dst.handle, 1, &region);
+            vkCmdCopyBuffer(commandBuffer, src._, dst._, 1, &region);
         });
     }
 

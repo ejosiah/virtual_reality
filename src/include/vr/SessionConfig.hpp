@@ -14,6 +14,7 @@ namespace vr {
         std::vector<SwapchainSpecification> _swapchains;
         std::vector<ReferenceSpaceSpecification> _spaces;
         std::vector<ActionSetSpecification> _actionSets;
+        XrReferenceSpaceType _baseSpaceType{ XR_REFERENCE_SPACE_TYPE_VIEW };
 
         SessionConfig& addSwapChain(const SwapchainSpecification& spec) {
             _swapchains.push_back(spec);
@@ -27,6 +28,29 @@ namespace vr {
 
         SessionConfig& addActionSet(const ActionSetSpecification& spec) {
             _actionSets.push_back(spec);
+            return *this;
+        }
+
+        [[maybe_unused]]
+        SessionConfig& baseSpaceType() {
+            return *this;
+        }
+
+        [[maybe_unused]]
+        SessionConfig& view() {
+            _baseSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
+            return *this;
+        }
+
+        [[maybe_unused]]
+        SessionConfig& local() {
+            _baseSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL;
+            return *this;
+        }
+
+        [[maybe_unused]]
+        SessionConfig& stage() {
+            _baseSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
             return *this;
         }
 

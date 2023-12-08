@@ -5,6 +5,7 @@
 #include "graphics/Graphics.hpp"
 #include "graphics/Renderer.hpp"
 #include "SessionConfig.hpp"
+#include "Input.hpp"
 
 #include <openxr/openxr.h>
 
@@ -66,7 +67,7 @@ namespace vr {
             return m_currentState == XR_SESSION_STATE_EXITING;
         }
 
-        const XrSession get() const {
+        [[nodiscard]] const XrSession get() const {
             return m_session;
         }
 
@@ -103,6 +104,7 @@ namespace vr {
         std::vector<ActionSet> m_actionSets;
         std::vector<XrActiveActionSet> m_activeActionSets;
         std::map<std::string, XrSpace> m_actionSpaces;
+        std::vector<ImageId> m_swapChainImages;
     };
 
     class SessionState {

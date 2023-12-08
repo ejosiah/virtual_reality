@@ -10,11 +10,11 @@ set(LIB_DEPENDENCIES
         OpenXR::openxr_loader
         Vulkan::Vulkan
         VulkanMemoryAllocator
-        mp-units
         cpptrace-lib
         glfw)
 
 include_directories(${CMAKE_CURRENT_LIST_DIR}/include)
+include_directories(${CMAKE_CURRENT_LIST_DIR}/../dependencies/stb)
 
 add_definitions(
         -DXR_USE_GRAPHICS_API_VULKAN
@@ -22,7 +22,6 @@ add_definitions(
         -DGLM_FORCE_RADIANS
         -DGLFW_INCLUDE_VULKAN
         -DGLM_FORCE_SWIZZLE
-        -DUSE_MIRROR_WINDOW
 )
 
 add_executable(vr_app main.cpp ${HEADER_FILES} ${SOURCE_FILES})

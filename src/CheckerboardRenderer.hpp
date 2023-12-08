@@ -72,7 +72,7 @@ struct CheckerboardRenderer : public vr::VulkanRenderer {
 
             layer.eyeVisibility = static_cast<XrEyeVisibility>(layerId);
             layer.subImage.imageArrayIndex = layerId;
-            layer.subImage.swapchain = swapChain.swapchain;
+            layer.subImage.swapchain = swapChain._;
             layer.subImage.imageRect = {{0, 0}, static_cast<int32_t>(swapChain.width),
                                                  static_cast<int32_t>(swapChain.height)};
             layer.pose.position = {0, 0, -1};

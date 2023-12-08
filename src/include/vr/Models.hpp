@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <string>
+#include <span>
 
 namespace vr {
 
@@ -23,6 +24,19 @@ namespace vr {
     struct ImageId {
         std::string swapChain;
         uint32_t imageIndex{};
+    };
+
+    struct SubImage {
+        std::string swapChain;
+        glm::vec2 region;
+        uint32_t arrayIndex;
+    };
+
+    struct FieldOfView {
+        float angleLeft;
+        float angleRight;
+        float angleUp;
+        float angleDown;
     };
 
     struct FrameInfo {

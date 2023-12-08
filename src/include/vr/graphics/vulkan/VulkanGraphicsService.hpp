@@ -199,7 +199,9 @@ namespace vr {
 #endif
         }
 
+#ifdef USE_MIRROR_WINDOW
         Window &window() override;
+#endif
 
 
     private:

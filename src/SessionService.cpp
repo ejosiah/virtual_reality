@@ -77,7 +77,7 @@ namespace vr {
     
     void SessionService::createMainViewSpace() {
         auto createInfo = makeStruct<XrReferenceSpaceCreateInfo>();
-        createInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
+        createInfo.referenceSpaceType = m_config._baseSpaceType;
         createInfo.poseInReferenceSpace.position = {0, 0, 0};
         createInfo.poseInReferenceSpace.orientation = {0, 0, 0, 1};
         LOG_ERROR(m_ctx.instance, xrCreateReferenceSpace(m_session, &createInfo, &m_baseSpace))
@@ -123,6 +123,7 @@ namespace vr {
 
             m_swapchains.push_back({ spec, swapchain});
         }
+        m_swapChainImages.resize(m_swapchains.size());
         m_graphics->setSwapChains(m_swapchains);
     }
     
@@ -374,14 +375,12 @@ namespace vr {
             bool inActive = std::any_of(activeSets.begin(), activeSets.end(), [&binding](const auto& aSet){ return aSet.actionSet != binding.xrActionSet; });
             if(inActive) continue;
 
-            for(auto& [name, entry] : binding.actions) {
+            for(const auto& [name, action] : binding.actions) {
                 assert(binding.actionSet.actions.contains(name));
 
-                const auto& [path, type, xrAction] = entry;
-
                 auto getInfo = makeStruct<XrActionStateGetInfo>();
-                getInfo.action = xrAction;
-                switch(type) {
+                getInfo.action = action._;
+                switch(action.type) {
                     case XR_ACTION_TYPE_BOOLEAN_INPUT : {
                         auto state = makeStruct<XrActionStateBoolean>();
                         CHECK_XR(xrGetActionStateBoolean(session, &getInfo, &state));

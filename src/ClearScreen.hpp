@@ -75,7 +75,7 @@ struct ClearScreen : public vr::VulkanRenderer {
             auto& view = layerViews[i];
             view.pose = frameInfo.viewInfo.views[i].pose;
             view.fov = frameInfo.viewInfo.views[i].fov;
-            view.subImage.swapchain = swapChain.swapchain;
+            view.subImage.swapchain = swapChain._;
             view.subImage.imageRect = {{0, 0}, static_cast<int32_t>(swapChain.width), static_cast<int32_t>(swapChain.height)};
             view.subImage.imageArrayIndex = 0;
         }

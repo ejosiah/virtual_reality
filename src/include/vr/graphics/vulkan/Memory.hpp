@@ -9,7 +9,7 @@
 namespace vr {
 
     struct Buffer {
-        VkBuffer handle{};
+        VkBuffer _{};
         VkBufferCreateInfo info{};
         VmaAllocation allocation{};
     };

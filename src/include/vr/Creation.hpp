@@ -98,6 +98,8 @@ namespace vr {
         mutable std::unique_ptr<GraphicsContextCreation> graphicsContextCreation;
         XrFormFactor _formFactor{XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY};
         std::vector<cstring> extensions{
+            XR_KHR_COMPOSITION_LAYER_CUBE_EXTENSION_NAME,
+            XR_KHR_COMPOSITION_LAYER_EQUIRECT_EXTENSION_NAME
 #ifndef NDEBUG
 #ifdef XR_DEBUG
         XR_EXT_DEBUG_UTILS_EXTENSION_NAME
