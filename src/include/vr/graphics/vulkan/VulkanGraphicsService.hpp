@@ -78,6 +78,8 @@ namespace vr {
 
         const XrVulkanSwapChain& getSwapChain(const std::string& name);
 
+        const XrVulkanSwapChain& getSwapChain(XrSwapchain swapchain);
+
         void shutdown() final;
 
         glm::mat4 projection(const XrFovf &fov, float zNear, float zFar) final;

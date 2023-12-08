@@ -209,7 +209,7 @@ namespace vr {
             // TODO filter setA/SetB/SetC
         }
 
-        bindActions(InteractionProfile::Simple());
+//        bindActions(InteractionProfile::Simple());
         bindActions(InteractionProfile::OculusTouchController());
 
         auto attachInfo = makeStruct<XrSessionActionSetsAttachInfo>();
@@ -234,7 +234,6 @@ namespace vr {
             }
         }
 
-
         XrPath xrProfile;
         xrStringToPath(m_ctx.instance, profile.profile().c_str(), &xrProfile);
 
@@ -257,12 +256,11 @@ namespace vr {
             throw std::runtime_error{"Invalid state"};
         }
 
-        static FrameEnd frame{};
-        frame.layers.clear();
+        static std::vector<Layer> layers;
+        layers.clear();
 
         const auto session = m_sessionService.m_session;
-        const auto swapchain = m_sessionService.m_swapchains.front();
-
+        const auto& swapchains = m_sessionService.m_swapchains;
 
         xrWaitFrame(session, XR_NULL_HANDLE, &m_frameState);
 
@@ -270,57 +268,71 @@ namespace vr {
         if(XR_SUCCEEDED(xrBeginFrame(session, nullptr))) {
             if(m_frameState.shouldRender){
                 beginFrame();
-                uint32_t imageIndex;
-                xrAcquireSwapchainImage(swapchain.handle, nullptr, &imageIndex);
-                ImageId imageId{swapchain.spec._name, imageIndex};
-                auto waitInfo = makeStruct<XrSwapchainImageWaitInfo>();
-                waitInfo.timeout = XR_INFINITE_DURATION;
 
-                if (XR_UNQUALIFIED_SUCCESS(xrWaitSwapchainImage(swapchain.handle, &waitInfo))) {
+                for(const auto& swapchain : swapchains) {
 
-                    // Get view info
-                    auto viewState = makeStruct<XrViewState>();
-                    auto viewLocateInfo = makeStruct<XrViewLocateInfo>();
-                    viewLocateInfo.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
-                    viewLocateInfo.displayTime = m_frameState.predictedDisplayTime;
-                    viewLocateInfo.space = m_sessionService.m_baseSpace;
-                    uint32_t numViews;
-                    xrLocateViews(session, &viewLocateInfo, &viewState, 0, &numViews, XR_NULL_HANDLE);
-                    std::vector<XrView> views(numViews, { XR_TYPE_VIEW});
-                    LOG_ERROR(m_sessionService.m_ctx.instance, xrLocateViews(session, &viewLocateInfo, &viewState, numViews, &numViews, views.data())) ;
-                    ViewInfo viewInfo{viewState, views};
+                    uint32_t imageIndex;
+                    xrAcquireSwapchainImage(swapchain.handle, nullptr, &imageIndex);
+                    ImageId imageId{swapchain.handle, imageIndex};
+                    auto waitInfo = makeStruct<XrSwapchainImageWaitInfo>();
+                    waitInfo.timeout = XR_INFINITE_DURATION;
 
-                    // get space locations
-                    std::vector<SpaceLocation> spaceLocations;
-                    spaceLocations.reserve(m_sessionService.m_spaces.size());
-                    for(const auto& [name, space] : m_sessionService.m_spaces) {
-                        auto location = makeStruct<XrSpaceLocation>();
-                        xrLocateSpace(space, m_sessionService.m_baseSpace, m_frameState.predictedDisplayTime, &location);
-                        spaceLocations.push_back({name, convert(location.pose)});
-                    }
-                    if(!spaceLocations.empty()) {
-                        m_sessionService.m_renderer->set(spaceLocations);
-                    }
+                    if (XR_UNQUALIFIED_SUCCESS(xrWaitSwapchainImage(swapchain.handle, &waitInfo))) {
 
-                    frame = frameLoop({ imageId
-                                        , {viewState, std::move(views)}
-                                        , m_sessionService.m_baseSpace
-                                        , m_frameState.predictedDisplayTime
-                                        , m_frameState.predictedDisplayPeriod});
+                        // Get view info
+                        auto viewState = makeStruct<XrViewState>();
+                        auto viewLocateInfo = makeStruct<XrViewLocateInfo>();
+                        viewLocateInfo.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
+                        viewLocateInfo.displayTime = m_frameState.predictedDisplayTime;
+                        viewLocateInfo.space = m_sessionService.m_baseSpace;
+                        uint32_t numViews;
+                        xrLocateViews(session, &viewLocateInfo, &viewState, 0, &numViews, XR_NULL_HANDLE);
+                        std::vector<XrView> views(numViews, {XR_TYPE_VIEW});
+                        LOG_ERROR(m_sessionService.m_ctx.instance,
+                                  xrLocateViews(session, &viewLocateInfo, &viewState, numViews, &numViews,
+                                                views.data()));
+                        ViewInfo viewInfo{viewState, views};
+
+                        // get space locations
+                        std::vector<SpaceLocation> spaceLocations;
+                        spaceLocations.reserve(m_sessionService.m_spaces.size());
+                        for (const auto &[name, space]: m_sessionService.m_spaces) {
+                            auto location = makeStruct<XrSpaceLocation>();
+                            xrLocateSpace(space, m_sessionService.m_baseSpace, m_frameState.predictedDisplayTime,
+                                          &location);
+                            spaceLocations.push_back({name, convert(location.pose)});
+                        }
+                        if (!spaceLocations.empty()) {
+                            m_sessionService.m_renderer->set(spaceLocations);
+                        }
+
+                        frameLoop({imageId, {viewState, std::move(views)}, m_sessionService.m_baseSpace,
+                                   m_frameState.predictedDisplayTime, m_frameState.predictedDisplayPeriod}, layers);
 
 #ifdef USE_MIRROR_WINDOW
-                    m_sessionService.m_graphics->mirror(imageId);
+                        m_sessionService.m_graphics->mirror(imageId);
 #endif
 
+                    }
+                    xrReleaseSwapchainImage(swapchain.handle, nullptr);
+
                 }
-                xrReleaseSwapchainImage(swapchain.handle, nullptr);
                 endFrame();
             }
 
+            std::sort(layers.begin(), layers.end());
+            std::vector<XrCompositionLayerBaseHeader*> xrLayers;
+            for(const auto& layer : layers) {
+                std::visit([&](auto xrLayer){
+                    xrLayer->space = m_sessionService.m_baseSpace;
+                    xrLayers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader*>(xrLayer));
+                }, layer.layer);
+            }
+
             XrFrameEndInfo endFrameInfo = makeStruct<XrFrameEndInfo>();
-            endFrameInfo.environmentBlendMode = frame.blendMode;
-            endFrameInfo.layerCount = frame.layers.size();
-            endFrameInfo.layers = frame.layers.data();
+            endFrameInfo.environmentBlendMode = m_sessionService.m_blendMode;
+            endFrameInfo.layerCount = xrLayers.size();
+            endFrameInfo.layers = xrLayers.data();
             endFrameInfo.displayTime = m_frameState.predictedDisplayTime;
             xrEndFrame(session, &endFrameInfo);
         }
@@ -368,12 +380,12 @@ namespace vr {
     }
 
 
-    FrameEnd SessionVisible::frameLoop(const FrameInfo &frameInfo) {
-        return m_sessionService.m_renderer->paused(frameInfo);
+    void SessionVisible::frameLoop(const FrameInfo &frameInfo, Layers& layers) {
+        return m_sessionService.m_renderer->paused(frameInfo, layers);
     }
 
-    FrameEnd SessionFocused::frameLoop(const FrameInfo &frameInfo) {
-        return m_sessionService.m_renderer->render(frameInfo);
+    void SessionFocused::frameLoop(const FrameInfo &frameInfo, Layers& layers) {
+        return m_sessionService.m_renderer->render(frameInfo, layers);
     }
 
     void SessionFocused::processFrame() {

@@ -216,6 +216,14 @@ namespace vr {
         return *itr;
     }
 
+    const XrVulkanSwapChain &VulkanGraphicsService::getSwapChain(XrSwapchain swapchain) {
+        auto itr = std::find_if(m_swapChains.begin(), m_swapChains.end(), [&swapchain](const auto& sc){ return swapchain == sc._; });
+        if(itr == m_swapChains.end()){
+            THROW(std::format("swapChain[{}] not found", (uint64_t)swapchain));
+        }
+        return *itr;
+    }
+
     VkImageView VulkanGraphicsService::createImageView(VkImageViewCreateInfo createInfo) {
         VkImageView view;
         vkCreateImageView(m_device, &createInfo, nullptr, &view);

@@ -42,11 +42,11 @@ struct ClearScreen : public vr::VulkanRenderer {
         }
     }
 
-    vr::FrameEnd paused(const vr::FrameInfo &frameInfo) override {
-        return render(frameInfo);
+    void paused(const vr::FrameInfo &frameInfo, vr::Layers& layers) override {
+        return render(frameInfo, layers);
     }
 
-    vr::FrameEnd render(const vr::FrameInfo &frameInfo) override {
+    void render(const vr::FrameInfo &frameInfo, vr::Layers& layers) override {
         static float elapsedTimeSeconds = 0;
         elapsedTimeSeconds += static_cast<float>(frameInfo.predictedDuration) * 1E-9f;
         const auto swapChain = graphicsService().getSwapChain("main");
@@ -83,9 +83,7 @@ struct ClearScreen : public vr::VulkanRenderer {
         layer.space = frameInfo.space;
         layer.views = layerViews.data();
 
-        vr::FrameEnd frameEnd{};
-        frameEnd.layers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader*>(&layer));
-        return frameEnd;
+         layers.push_back( { &layer } );
     }
 
     void cleanup() override {

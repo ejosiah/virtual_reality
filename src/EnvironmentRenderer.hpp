@@ -19,7 +19,6 @@ public:
     void init() override {
         loadCubeMap();
         loadEquirectMap();
-        m_frame.layers.resize(1);
     }
 
     void loadCubeMap() {
@@ -28,7 +27,7 @@ public:
         m_cubemapLayer.swapchain = swapChain._;
         m_cubemapLayer.orientation = {0, 0, 0, 1};
         m_cubemapLayer.imageArrayIndex = 0;
-        m_layers[0] = reinterpret_cast<XrCompositionLayerBaseHeader*>(&m_cubemapLayer);
+        m_currentLayer = reinterpret_cast<XrCompositionLayerBaseHeader *>(&m_cubemapLayer);
 
         VkDeviceSize size = swapChain.width * swapChain.height * 4;
         VkDeviceSize offset = 0;
@@ -87,7 +86,7 @@ public:
     void loadEquirectMap() {
         int width, height, comps;
         stbi_info(equirectPath2, &width, &height, &comps);
-        const auto& swapChain = graphicsService().getSwapChain("equi_rectangular0");
+        const auto& swapChain = graphicsService().getSwapChain("equi_rectangular");
         m_equiRectLayer.eyeVisibility = XR_EYE_VISIBILITY_BOTH;
         m_equiRectLayer.subImage.swapchain = swapChain._;
         m_equiRectLayer.subImage.imageArrayIndex = 0;
@@ -97,7 +96,6 @@ public:
         m_equiRectLayer.radius = 0;
         m_equiRectLayer.scale = { 1, 1};
         m_equiRectLayer.bias = {0, 0};
-        m_layers[1] = reinterpret_cast<XrCompositionLayerBaseHeader*>(&m_equiRectLayer);
 
         uint32_t numPixels = swapChain.width * swapChain.height * STBI_rgb_alpha;
         VkDeviceSize size = numPixels * sizeof(uint16_t);
@@ -151,8 +149,12 @@ public:
     }
 
     std::vector<vr::Vibrate> set(const vr::ActionSet &actionSet) override {
-        if(actionSet.get("a").value<bool>()){
-            currentLayerIndex = (currentLayerIndex + 1) % 2;
+        if(actionSet.get("a").changed && actionSet.get("a").value<bool>()){
+            if(m_currentLayer->type == XR_TYPE_COMPOSITION_LAYER_CUBE_KHR) {
+                m_currentLayer = reinterpret_cast<XrCompositionLayerBaseHeader *>(&m_equiRectLayer);
+            }else {
+                m_currentLayer = reinterpret_cast<XrCompositionLayerBaseHeader *>(&m_cubemapLayer);
+            }
         }
         return {};
     }
@@ -161,14 +163,16 @@ public:
         return "Environment";
     }
 
-    vr::FrameEnd paused(const vr::FrameInfo &frameInfo) override {
-        return render(frameInfo);
+    void paused(const vr::FrameInfo &frameInfo, vr::Layers& layers) override {
+        return render(frameInfo, layers);
     }
 
-    vr::FrameEnd render(const vr::FrameInfo &frameInfo) override {
-        m_frame.layers[0] = m_layers[currentLayerIndex];
-        m_frame.layers[0]->space = frameInfo.space;
-        return m_frame;
+    void render(const vr::FrameInfo &frameInfo, vr::Layers& layers) override {
+        if(m_currentLayer->type == XR_TYPE_COMPOSITION_LAYER_CUBE_KHR && frameInfo.imageId.swapChain == m_cubemapLayer.swapchain) {
+            layers.push_back( { m_currentLayer });
+        }else if(m_currentLayer->type == XR_TYPE_COMPOSITION_LAYER_EQUIRECT_KHR && frameInfo.imageId.swapChain == m_equiRectLayer.subImage.swapchain){
+            layers.push_back( { m_currentLayer } );
+        }
     }
 
     static std::shared_ptr<Renderer> shared() {
@@ -207,7 +211,7 @@ public:
                         )
                 .addSwapChain(
                     vr::SwapchainSpecification()
-                        .name("equi_rectangular0")
+                        .name("equi_rectangular")
                         .usage()
                             .colorAttachment()
                             .transferDestination()
@@ -218,19 +222,19 @@ public:
                         .width(eWidth)
                         .height(eHeight)
                         )
-                .addSwapChain(
-                    vr::SwapchainSpecification()
-                        .name("equi_rectangular1")
-                        .usage()
-                            .colorAttachment()
-                            .transferDestination()
-                            .transferSource()
-                        .format(VK_FORMAT_R16G16B16A16_SFLOAT)
-                        .faceCount(1)
-                        .arraySize(1)
-                        .width(eWidth)
-                        .height(eHeight)
-                        )
+//                .addSwapChain(
+//                    vr::SwapchainSpecification()
+//                        .name("equi_rectangular1")
+//                        .usage()
+//                            .colorAttachment()
+//                            .transferDestination()
+//                            .transferSource()
+//                        .format(VK_FORMAT_R16G16B16A16_SFLOAT)
+//                        .faceCount(1)
+//                        .arraySize(1)
+//                        .width(eWidth)
+//                        .height(eHeight)
+//                        )
         ;
     }
     
@@ -244,8 +248,6 @@ private:
 
     XrCompositionLayerCubeKHR m_cubemapLayer{ XR_TYPE_COMPOSITION_LAYER_CUBE_KHR };
     XrCompositionLayerEquirectKHR m_equiRectLayer{ XR_TYPE_COMPOSITION_LAYER_EQUIRECT_KHR };
-    vr::FrameEnd m_frame{};
-    std::array<XrCompositionLayerBaseHeader*, 2> m_layers;
-    int currentLayerIndex{};
+    XrCompositionLayerBaseHeader* m_currentLayer;
     EnvType envType{EnvType::CUBE_MAP};
 };

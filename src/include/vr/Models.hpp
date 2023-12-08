@@ -8,6 +8,7 @@
 #include <vector>
 #include <string>
 #include <span>
+#include <variant>
 
 namespace vr {
 
@@ -22,7 +23,7 @@ namespace vr {
     };
 
     struct ImageId {
-        std::string swapChain;
+        XrSwapchain swapChain;
         uint32_t imageIndex{};
     };
 
@@ -47,10 +48,25 @@ namespace vr {
         XrDuration predictedDuration{};
     };
 
+    using CompositionLayer =
+        std::variant<
+            XrCompositionLayerProjection*,
+            XrCompositionLayerQuad*,
+            XrCompositionLayerCubeKHR*,
+            XrCompositionLayerEquirectKHR*,
+            XrCompositionLayerCylinderKHR*,
+            XrCompositionLayerBaseHeader*
+        >;
 
-    struct FrameEnd {
-        XrEnvironmentBlendMode blendMode{XR_ENVIRONMENT_BLEND_MODE_OPAQUE};
-        std::vector<XrCompositionLayerBaseHeader*> layers;
+    struct Layer {
+        CompositionLayer layer;
+        uint32_t position{};
+
+        auto operator<=>(const Layer& other) const {
+            return position<=>other.position;
+        }
     };
+
+    using Layers = std::vector<Layer>;
 
 }

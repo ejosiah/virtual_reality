@@ -450,11 +450,11 @@ public:
         return vibrations;
     }
 
-    vr::FrameEnd paused(const vr::FrameInfo &frameInfo) override {
-        return render(frameInfo);
+    void paused(const vr::FrameInfo &frameInfo, vr::Layers& layers) override {
+        return render(frameInfo, layers);
     }
 
-    vr::FrameEnd render(const vr::FrameInfo &frameInfo) override {
+    void render(const vr::FrameInfo &frameInfo, vr::Layers& layers) override {
         renderCubes(frameInfo);
 
         m_views[0].pose = frameInfo.viewInfo.views[0].pose;
@@ -462,10 +462,8 @@ public:
         m_views[0].fov = frameInfo.viewInfo.views[0].fov;
         m_views[1].fov = frameInfo.viewInfo.views[1].fov;
         m_projectionLayer.space = frameInfo.space;
-        vr::FrameEnd frameEnd{};
-        frameEnd.layers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader*>(&m_projectionLayer));
 
-        return frameEnd;
+        return layers.push_back( { &m_projectionLayer } );
     }
 
     void renderCubes(const vr::FrameInfo &frameInfo) {

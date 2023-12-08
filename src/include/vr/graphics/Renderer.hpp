@@ -35,9 +35,9 @@ namespace vr {
 
         virtual cstring name() { return ""; }
 
-        virtual FrameEnd paused(const FrameInfo &frameInfo) = 0;
+        virtual void paused(const FrameInfo &frameInfo, Layers& layers) = 0;
 
-        virtual FrameEnd render(const FrameInfo &frameInfo) = 0;
+        virtual void render(const FrameInfo &frameInfo, Layers& layers) = 0;
 
         virtual std::string activeActionSets() { return "*"; };
 
@@ -50,13 +50,9 @@ namespace vr {
     public:
         ~VoidRenderer() override = default;
 
-        FrameEnd paused(const FrameInfo &frameInfo) override {
-            return {};
-        }
+        void paused(const FrameInfo &frameInfo, Layers& layers) override {}
 
-        FrameEnd render(const FrameInfo &frameInfo) override {
-            return {};
-        }
+        void render(const FrameInfo &frameInfo, Layers& layers) override {}
 
         static std::shared_ptr<Renderer> shared() {
             return std::make_shared<VoidRenderer>();

@@ -47,8 +47,8 @@ struct CheckerboardRenderer : public vr::VulkanRenderer {
         const auto w = int(swapChain.width);
         const auto h = int(swapChain.height);
 
-        for (auto layerId = 0u; layerId < layers.size(); layerId++) {
-            auto& layer = layers[layerId];
+        for (auto layerId = 0u; layerId < m_layers.size(); layerId++) {
+            auto& layer = m_layers[layerId];
             for (auto i = 0; i < h; i++) {
                 for (auto j = 0; j < w; j++) {
                     vec2 uv{
@@ -67,7 +67,7 @@ struct CheckerboardRenderer : public vr::VulkanRenderer {
                 }
             }
             for(auto imageIndex = 0u; imageIndex < swapChain.images.size(); imageIndex++) {
-                graphicsService().copyToImage({ buffer, {"Checkerboard", imageIndex}, 0, layerId });
+                graphicsService().copyToImage({ buffer, {swapChain._, imageIndex}, 0, layerId });
             }
 
             layer.eyeVisibility = static_cast<XrEyeVisibility>(layerId);
@@ -78,22 +78,19 @@ struct CheckerboardRenderer : public vr::VulkanRenderer {
             layer.pose.position = {0, 0, -1};
             layer.pose.orientation = {0, 0, 0, 1};
             layer.size = {1, 1};
-            m_frameEnd.layers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader *>(&layer));
         }
 
         graphicsService().release(buffer);
     }
 
 
-    vr::FrameEnd paused(const vr::FrameInfo &frameInfo) override {
-        return render(frameInfo);
+    void paused(const vr::FrameInfo &frameInfo, vr::Layers& layers) override {
+        return render(frameInfo, layers);
     }
 
-    vr::FrameEnd render(const vr::FrameInfo &frameInfo) override {
-        for(auto& layer : m_frameEnd.layers) {
-            layer->space = frameInfo.space;
-        }
-        return m_frameEnd;
+    void render(const vr::FrameInfo &frameInfo, vr::Layers& layers) override {
+        layers.push_back({&m_layers[0]});
+        layers.push_back({&m_layers[1]});
     }
 
     static std::shared_ptr<vr::Renderer> shared() {
@@ -127,8 +124,7 @@ struct CheckerboardRenderer : public vr::VulkanRenderer {
     }
 
 private:
-    std::vector<XrCompositionLayerQuad> layers{
+    std::vector<XrCompositionLayerQuad> m_layers{
             {XR_TYPE_COMPOSITION_LAYER_QUAD},
             {XR_TYPE_COMPOSITION_LAYER_QUAD}};
-    vr::FrameEnd m_frameEnd{};
 };

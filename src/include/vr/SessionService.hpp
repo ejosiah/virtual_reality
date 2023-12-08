@@ -106,6 +106,7 @@ namespace vr {
         std::vector<XrActiveActionSet> m_activeActionSets;
         std::map<std::string, XrSpace> m_actionSpaces;
         std::vector<ImageId> m_swapChainImages;
+        XrEnvironmentBlendMode m_blendMode{XR_ENVIRONMENT_BLEND_MODE_OPAQUE};
     };
 
     class SessionState {
@@ -122,8 +123,7 @@ namespace vr {
 
         virtual void processFrame() {}
 
-        virtual FrameEnd frameLoop(const FrameInfo &frameInfo) {
-            return {};
+        virtual void frameLoop(const FrameInfo &frameInfo, Layers& layers) {
         }
 
         [[nodiscard]]
@@ -192,7 +192,7 @@ namespace vr {
         [[nodiscard]]
         XrSessionState state() const final { return XR_SESSION_STATE_VISIBLE; }
 
-        FrameEnd frameLoop(const FrameInfo &frameInfo) final;
+        void frameLoop(const FrameInfo &frameInfo, Layers& layers) final;
     };
 
     class SessionFocused : public SessionStateRunning {
@@ -207,7 +207,7 @@ namespace vr {
 
         void processFrame() final;
 
-        FrameEnd frameLoop(const FrameInfo &frameInfo) final;
+        void frameLoop(const FrameInfo &frameInfo, Layers& layers) final;
     };
 
     class SessionStopping : public SessionState {
