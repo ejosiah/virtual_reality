@@ -1,6 +1,8 @@
 #pragma once
 
 #include "vr/Models.hpp"
+#include "vr/Input.hpp"
+
 #include <openxr/openxr.h>
 
 #include <format>
@@ -11,8 +13,7 @@ namespace vr {
     struct ActionSpecification {
         std::string name{};
         std::string description;
-        XrActionType type{};
-        std::string path{};
+        vr::input::Input input;
 
         auto operator<=>(const ActionSpecification& other) const {
             return name<=>other.name;
@@ -34,9 +35,14 @@ namespace vr {
             return *this;
         }
 
-        ActionSetSpecification& addAction(std::string_view name, XrActionType actionType, std::string_view path, std::string_view description = "") {
+        ActionSetSpecification& addAction(std::string_view name
+                                          , vr::input::Source source
+                                          , vr::input::Identifier identifier
+                                          , vr::input::Component component
+                                          , std::string_view description = "") {
+
             description = description.empty() ? name : description;
-            _actions.insert( ActionSpecification{name.data(), description.data(), actionType, path.data()});
+            _actions.insert( ActionSpecification{name.data(), description.data(), { source, identifier, component}} );
             return *this;
         }
 
@@ -47,12 +53,6 @@ namespace vr {
             for(const auto& action : _actions) {
                 if(action.name.empty()) {
                     THROW("Action name is required");
-                }
-                if(!static_cast<int>(action.type)) {
-                    THROW(std::format("Action type is required for action: {}.{}",_name, action.name));
-                }
-                if(action.path.empty()){
-                    THROW(std::format("path is required for action: {}.{}",_name, action.name));
                 }
             }
         }

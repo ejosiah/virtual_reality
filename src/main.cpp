@@ -16,7 +16,7 @@
 int main() {
     spdlog::set_level(spdlog::level::debug);
 
-    auto renderer = EnvironmentRenderer::shared();
+    auto renderer = SpaceVisualization::shared();
     auto creation = vr::ContextCreation::vulkan();
 
     creation
@@ -28,7 +28,7 @@ int main() {
                 .addLayer("VK_LAYER_KHRONOS_validation");
 
 
-    vr::SessionConfig sessionConfig = EnvironmentRenderer::session();
+    vr::SessionConfig sessionConfig = SpaceVisualization::session();
 
     vr::Application application{
         creation

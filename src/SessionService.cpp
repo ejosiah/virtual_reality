@@ -3,6 +3,7 @@
 #include "xr_struct_mapping.hpp"
 #include "vr/Enumerators.hpp"
 #include "vr/ToString.hpp"
+#include "util/collections.hpp"
 
 #include <GLFW/glfw3.h>
 
@@ -159,9 +160,7 @@ namespace vr {
             spdlog::info("No action sets to configure");
             return;
         }
-        std::vector<XrActionSuggestedBinding> actionSuggestedBinding;
         std::vector<XrActionSet> actionSets;
-
         for(const auto& spec : m_config._actionSets) {
             auto createInfo = makeStruct<XrActionSetCreateInfo>();
             strcpy_s(createInfo.actionSetName, spec._name.c_str());
@@ -176,18 +175,17 @@ namespace vr {
             m_actionSets.emplace_back();
             m_actionSetBindings.push_back({actionSet, m_actionSets.back()});
             ActionSetBinding& binding = m_actionSetBindings.back();
-            
+
             for(const auto& actionSpec : spec._actions) {
-                spdlog::debug("configuration action {} in action set {}", actionSpec.name, spec._name);
                 auto actionInfo = makeStruct<XrActionCreateInfo>();
                 strcpy_s(actionInfo.actionName, actionSpec.name.c_str());
                 strcpy_s(actionInfo.localizedActionName, actionSpec.description.c_str());
-                actionInfo.actionType = actionSpec.type;
+                actionInfo.actionType = getActionType(actionSpec.input.component);
 
                 XrAction action;
                 CHECK_XR(xrCreateAction(actionSet, &actionInfo, &action));
-                
-                if(actionSpec.type == XR_ACTION_TYPE_POSE_INPUT) {
+
+                if (actionInfo.actionType == XR_ACTION_TYPE_POSE_INPUT) {
                     auto spaceInfo = makeStruct<XrActionSpaceCreateInfo>();
                     spaceInfo.action = action;
                     spaceInfo.poseInActionSpace.position = {0, 0, 0};
@@ -197,28 +195,10 @@ namespace vr {
                     m_actionSpaces[actionSpec.name] = space;
                 }
 
-                XrPath path;
-                xrStringToPath(m_ctx.instance, actionSpec.path.c_str(), &path);
-                binding.actions[actionSpec.name] =  { path, actionSpec.type, action };
+                binding.actions[actionSpec.name] = {actionSpec.input, action};
                 binding.actionSet.actions[actionSpec.name] = {actionSpec.name, false};
-
-                actionSuggestedBinding.push_back({action, path});
             }
         }
-
-        auto suggestedBindings = makeStruct<XrInteractionProfileSuggestedBinding>();
-        XrPath profile;
-//        xrStringToPath(m_ctx.instance, "/interaction_profiles/khr/simple_controller", &profile);
-        xrStringToPath(m_ctx.instance, "/interaction_profiles/oculus/touch_controller", &profile);
-        suggestedBindings.interactionProfile = profile;
-        suggestedBindings.countSuggestedBindings = actionSuggestedBinding.size();
-        suggestedBindings.suggestedBindings = actionSuggestedBinding.data();
-        LOG_ERROR(m_ctx.instance, xrSuggestInteractionProfileBindings(m_ctx.instance, &suggestedBindings));
-
-        auto attachInfo = makeStruct<XrSessionActionSetsAttachInfo>();
-        attachInfo.countActionSets = actionSets.size();
-        attachInfo.actionSets = actionSets.data();
-        LOG_ERROR(m_ctx.instance, xrAttachSessionActionSets(m_session, &attachInfo));
 
         const auto activeSets = m_renderer->activeActionSets();
         if(activeSets == "*"){
@@ -228,7 +208,45 @@ namespace vr {
         }else {
             // TODO filter setA/SetB/SetC
         }
+
+        bindActions(InteractionProfile::Simple());
+        bindActions(InteractionProfile::OculusTouchController());
+
+        auto attachInfo = makeStruct<XrSessionActionSetsAttachInfo>();
+        attachInfo.countActionSets = actionSets.size();
+        attachInfo.actionSets = actionSets.data();
+        LOG_ERROR(m_ctx.instance, xrAttachSessionActionSets(m_session, &attachInfo));
     }
+
+    void SessionService::bindActions(const InteractionProfile &profile) {
+        std::vector<XrActionSuggestedBinding> actionSuggestedBinding;
+
+        for(const auto& actionSetBinding : m_actionSetBindings ) {
+            for(auto [_, action] : actionSetBinding.actions) {
+                auto sPath = profile.path(action.input);
+                if(sPath.has_value()) {
+                    XrPath path;
+                    CHECK_XR(xrStringToPath(m_ctx.instance, sPath->c_str(), &path));
+                    auto &binding = push_use(actionSuggestedBinding);
+                    binding.action = action._;
+                    binding.binding = path;
+                }
+            }
+        }
+
+
+        XrPath xrProfile;
+        xrStringToPath(m_ctx.instance, profile.profile().c_str(), &xrProfile);
+
+        auto suggestedBindings = makeStruct<XrInteractionProfileSuggestedBinding>();
+        suggestedBindings.interactionProfile = xrProfile;
+        suggestedBindings.countSuggestedBindings = actionSuggestedBinding.size();
+        suggestedBindings.suggestedBindings = actionSuggestedBinding.data();
+        LOG_ERROR(m_ctx.instance, xrSuggestInteractionProfileBindings(m_ctx.instance, &suggestedBindings));
+
+    }
+
+
 
     void SessionStateRunning::beginFrame() {
         m_sessionService.m_renderer->beginFrame();
@@ -380,7 +398,7 @@ namespace vr {
 
                 auto getInfo = makeStruct<XrActionStateGetInfo>();
                 getInfo.action = action._;
-                switch(action.type) {
+                switch(getActionType(action.input.component)) {
                     case XR_ACTION_TYPE_BOOLEAN_INPUT : {
                         auto state = makeStruct<XrActionStateBoolean>();
                         CHECK_XR(xrGetActionStateBoolean(session, &getInfo, &state));

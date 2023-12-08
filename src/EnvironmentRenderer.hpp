@@ -190,7 +190,7 @@ public:
                 .addActionSet(
                         vr::ActionSetSpecification()
                             .name("main")
-                            .addAction("a", XR_ACTION_TYPE_BOOLEAN_INPUT, "/user/hand/right/input/a/click")
+                            .addAction("a", vr::Source::RIGHT_HAND, vr::Identifier::A, vr::Component::CLICK)
                         )
                 .addSwapChain(
                     vr::SwapchainSpecification()

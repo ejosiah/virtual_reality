@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Models.hpp"
-#include "Path.hpp"
 
 
 #include <glm/glm.hpp>

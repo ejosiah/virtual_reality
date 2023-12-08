@@ -7,14 +7,15 @@
 #include <string>
 #include <type_traits>
 #include <format>
+#include <optional>
 
 namespace vr {
 
     inline namespace input {
 
         enum class Source {
-            HAND_LEFT,
-            HAND_RIGHT,
+            LEFT_HAND,
+            RIGHT_HAND,
             HEAD,
             GAME_PAD,
             TREADMILL
@@ -75,12 +76,16 @@ namespace vr {
 
         class InteractionProfile {
         public:
-            virtual std::string path(Identifier identifier) = 0;
+            [[nodiscard]] virtual std::string path(Identifier identifier) const = 0;
 
-            virtual std::string profile() const = 0;
+            [[nodiscard]] virtual std::string profile() const = 0;
 
-            virtual std::string path(const Input &input) {
-                return std::format("{}{}{}", path(input.source), path(input.identifier), path(input.component));
+            [[nodiscard]] virtual std::optional<std::string> path(const Input &input) const {
+                try {
+                    return std::format("{}/{}{}", path(input.source), path(input.identifier), path(input.component));
+                }catch(...){
+                    return {};
+                }
             }
 
             [[nodiscard]]
@@ -89,30 +94,31 @@ namespace vr {
                     case Component::VIBRATE:
                         return "";
                     case Component::CLICK:
-                        return "click";
+                        return "/click";
                     case Component::TOUCH:
-                        return "touch";
+                        return "/touch";
                     case Component::FORCE:
-                        return "force";
+                        return "/force";
                     case Component::VALUE:
-                        return "value";
+                        return "/value";
                     case Component::X:
-                        return "x";
+                        return "/x";
                     case Component::Y:
-                        return "y";
+                        return "/y";
                     case Component::TWIST:
-                        return "twist";
+                        return "/twist";
                     case Component::POSE:
-                        return "pose";
+                        return "/pose";
                 }
+                THROW("INVALID COMPONENT, THIS WE SHOULD NEVER REACH HERE");
             }
 
             [[nodiscard]]
             static std::string path(Source source) {
                 switch (source) {
-                    case Source::HAND_LEFT:
+                    case Source::LEFT_HAND:
                         return "/user/hand/left";
-                    case Source::HAND_RIGHT:
+                    case Source::RIGHT_HAND:
                         return "/user/hand/right";
                     case Source::HEAD:
                         return "/user/head";
@@ -121,6 +127,7 @@ namespace vr {
                     case Source::TREADMILL:
                         return "/user/treadmill";
                 }
+                THROW("INVALID SOURCE, THIS WE SHOULD NEVER REACH HERE");
             }
 
             static SimpleInteractionProfile Simple();
@@ -140,7 +147,8 @@ namespace vr {
                 return "/interaction_profiles/khr/simple_controller";
             }
 
-            std::string path(Identifier identifier) final {
+            [[nodiscard]]
+            std::string path(Identifier identifier) const final {
                 switch (identifier) {
                     case Identifier::SELECT:
                         return "input/select";
@@ -165,9 +173,10 @@ namespace vr {
                 return "/interaction_profiles/oculus/touch_controller";
             }
 
-            std::string path(const Input &input) final {
+            [[nodiscard]]
+            std::optional<std::string> path(const Input &input) const final {
                 Input aInput = input;
-                if (input.source == Source::HAND_LEFT) {
+                if (input.source == Source::LEFT_HAND) {
                     switch (input.identifier) {
                         case Identifier::A:
                             aInput.identifier = Identifier::X;
@@ -178,7 +187,7 @@ namespace vr {
                             break;
                     }
                 }
-                if (input.source == Source::HAND_RIGHT) {
+                if (input.source == Source::RIGHT_HAND) {
                     switch (input.identifier) {
                         case Identifier::X:
                             aInput.identifier = Identifier::A;
@@ -194,7 +203,8 @@ namespace vr {
                 return InteractionProfile::path(aInput);
             }
 
-            std::string path(Identifier identifier) final {
+            [[nodiscard]]
+            std::string path(Identifier identifier) const final {
                 switch (identifier) {
                     case Identifier::X:
                         return "input/x";
@@ -226,12 +236,12 @@ namespace vr {
             }
         };
 
-        SimpleInteractionProfile InteractionProfile::Simple() {
-            SimpleInteractionProfile{};
+        inline SimpleInteractionProfile InteractionProfile::Simple() {
+            return SimpleInteractionProfile{};
         }
 
-        OculusTouchControllerProfile InteractionProfile::OculusTouchController() {
-            OculusTouchControllerProfile{};
+        inline OculusTouchControllerProfile InteractionProfile::OculusTouchController() {
+            return OculusTouchControllerProfile{};
         }
 
         inline XrActionType getActionType(Component component) {

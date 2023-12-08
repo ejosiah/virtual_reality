@@ -16,8 +16,7 @@
 namespace vr {
 
     struct ActionData {
-        XrPath path;
-        XrActionType type;
+        vr::Input input;
         XrAction _;
     };
 
@@ -78,6 +77,8 @@ namespace vr {
         void createReferenceSpaces();
 
         void setupActions();
+
+        void bindActions(const InteractionProfile& profile);
 
         void createSwapChain();
 
