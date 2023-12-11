@@ -16,7 +16,7 @@
 int main() {
     spdlog::set_level(spdlog::level::debug);
 
-    auto renderer = EnvironmentRenderer::shared();
+    auto renderer = SpaceVisualization::shared();
     auto creation = vr::ContextCreation::vulkan();
 
     creation
@@ -28,7 +28,7 @@ int main() {
                 .addLayer("VK_LAYER_KHRONOS_validation");
 
 
-    vr::SessionConfig sessionConfig = EnvironmentRenderer::session();
+    vr::SessionConfig sessionConfig = SpaceVisualization::session();
 
     vr::Application application{
         creation
@@ -38,8 +38,9 @@ int main() {
 
     try {
         application.run();
-    }catch(const std::runtime_error& error){
+    }catch(const cpptrace::runtime_error& error){
         spdlog::error("Application Error, reason: {}", error.what());
+        error.trace().print();
         return 500;
     }
     return 0;

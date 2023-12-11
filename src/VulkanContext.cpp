@@ -30,16 +30,16 @@ namespace vr {
                     , XR_VERSION_MAJOR(graphicsRequirement.minApiVersionSupported)
                     , XR_VERSION_MINOR(graphicsRequirement.minApiVersionSupported)
                     , XR_VERSION_PATCH(graphicsRequirement.minApiVersionSupported));
-            throw std::runtime_error{std::format("VulkanContextCreation: minimum required version {}", minVersion)};
+            throw cpptrace::runtime_error{std::format("VulkanContextCreation: minimum required version {}", minVersion)};
         }
     }
 
     void VulkanContextCreation::validate(const Context &ctx) const {
         if(_appName.empty()) {
-            throw std::runtime_error{"VulkanContextCreation: appName required"};
+            throw cpptrace::runtime_error{"VulkanContextCreation: appName required"};
         }
         if(_apiVersion == 0) {
-            throw std::runtime_error{"VulkanContextCreation: apiVersion required"};
+            throw cpptrace::runtime_error{"VulkanContextCreation: apiVersion required"};
         }
 
         validateVersions(ctx, _apiVersion);

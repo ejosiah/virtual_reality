@@ -6,7 +6,7 @@ namespace vr {
 
     VulkanGraphicsService::VulkanGraphicsService(const vr::Context &context) : GraphicsService(context) {
         if (!(reinterpret_cast<VulkanContext *>(context.graphicsContext.get()))) {
-            throw std::runtime_error{"invalid context, Vulkan context expected"};
+            throw cpptrace::runtime_error{"invalid context, Vulkan context expected"};
         }
     }
 
@@ -364,7 +364,7 @@ namespace vr {
 
     void VulkanGraphicsService::initGuard() const {
         if(!initialized){
-            throw std::runtime_error{"init has not yet been called on GraphicsService"};
+            throw cpptrace::runtime_error{"init has not yet been called on GraphicsService"};
         }
     }
 

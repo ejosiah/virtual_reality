@@ -20,7 +20,7 @@ namespace util {
             retries++;
             if(retries > maxRetries) {
                 spdlog::error("{} after {} retries", message, maxRetries);
-                throw std::runtime_error{std::format("failed to create XR instance after {} retries", maxRetries)};
+                throw cpptrace::runtime_error{std::format("failed to create XR instance after {} retries", maxRetries)};
             }
             auto x = std::roundf(std::expf(0.68f * float(retries)));
             int sleepTime =  static_cast<int>(x);

@@ -90,7 +90,7 @@ namespace vr {
 
     void SessionService::handle(const XrEventDataBuffer &event) {
         if(event.type != XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED) {
-            throw std::runtime_error{"Event is not a session state changed event"};
+            throw cpptrace::runtime_error{"Event is not a session state changed event"};
         }
         m_states[m_currentState]->handle(reinterpret_cast<const XrEventDataSessionStateChanged&>(event));
     }
@@ -107,7 +107,7 @@ namespace vr {
 
         for(const auto& spec : m_config._swapchains) {
             if(!imageFormatIsSupported(spec._format)){
-                throw std::runtime_error{"chosen swapchain image format unsupported"};
+                throw cpptrace::runtime_error{"chosen swapchain image format unsupported"};
             }
             XrSwapchainCreateInfo createInfo = makeStruct<XrSwapchainCreateInfo>();
             createInfo.usageFlags = spec._usageFlags;
@@ -134,7 +134,7 @@ namespace vr {
     }
 
     void SessionService::transitionTo(XrSessionState state) {
-        if(state == XR_SESSION_STATE_UNKNOWN) throw std::runtime_error{"Invalid state"};
+        if(state == XR_SESSION_STATE_UNKNOWN) throw cpptrace::runtime_error{"Invalid state"};
         spdlog::debug("transitioning session state from {} to {}", toString(m_currentState), toString(state));
         m_currentState = state;
     }
@@ -253,7 +253,7 @@ namespace vr {
 
     void SessionStateRunning::processFrame() {
         if(state() == XR_SESSION_STATE_UNKNOWN) {
-            throw std::runtime_error{"Invalid state"};
+            throw cpptrace::runtime_error{"Invalid state"};
         }
 
         static std::vector<Layer> layers;

@@ -121,10 +121,10 @@ namespace vr {
 
     void ContextCreation::validate() const {
         if(_appName.empty()) {
-            throw std::runtime_error{"ContextCreation: appName is required"};
+            throw cpptrace::runtime_error{"ContextCreation: appName is required"};
         }
         if(_apiVersion == 0) {
-            throw std::runtime_error("ContextCreation: apiVersion is required");
+            throw cpptrace::runtime_error("ContextCreation: apiVersion is required");
         }
     }
 
