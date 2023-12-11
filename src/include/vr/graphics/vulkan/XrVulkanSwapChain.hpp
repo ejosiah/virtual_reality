@@ -8,7 +8,7 @@ struct XrVulkanSwapChain{
     XrSwapchain _{};
     uint32_t width{};
     uint32_t height{};
-    VkFormat format;
+    VkFormat format{VK_FORMAT_UNDEFINED};
     std::vector<XrSwapchainImageVulkanKHR> images{};
 
     auto begin() noexcept {

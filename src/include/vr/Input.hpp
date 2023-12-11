@@ -49,7 +49,8 @@ namespace vr {
             WHEEL,
             GRIP,
             AIM,
-            HAPTIC
+            HAPTIC,
+            PALM
         };
 
         enum class Component {
@@ -158,6 +159,8 @@ namespace vr {
                         return "input/grip";
                     case Identifier::AIM:
                         return "input/aim";
+                    case Identifier::PALM:
+                        return "input/palm_ext";
                     case Identifier::HAPTIC:
                         return "output/haptic";
                     default:
@@ -230,6 +233,8 @@ namespace vr {
                         return "input/aim";
                     case Identifier::HAPTIC:
                         return "output/haptic";
+                    case Identifier::PALM:
+                        return "input/palm_ext";
                     default:
                         THROW(std::format("identifier supported for profile: {}", profile()));
                 }
