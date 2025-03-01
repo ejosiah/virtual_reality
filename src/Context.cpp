@@ -73,7 +73,8 @@ namespace vr {
 
         Context ctx{ .info = createInfo };
 
-        if(XR_FAILED(xrCreateInstance(&createInfo, &ctx.instance))) {
+        auto result = xrCreateInstance(&createInfo, &ctx.instance);
+        if(XR_FAILED(result)) {
             return std::nullopt;
         }
 

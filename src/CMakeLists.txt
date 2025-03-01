@@ -11,7 +11,8 @@ set(LIB_DEPENDENCIES
         Vulkan::Vulkan
         VulkanMemoryAllocator
         cpptrace-lib
-        glfw)
+        glfw
+        glm)
 
 include_directories(${CMAKE_CURRENT_LIST_DIR}/include)
 include_directories(${CMAKE_CURRENT_LIST_DIR}/../dependencies/stb)

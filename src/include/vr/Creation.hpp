@@ -90,11 +90,11 @@ namespace vr {
     };
 
     struct ContextCreation {
-        std::string _appName{};
-        uint32_t _appVersion{0};
-        std::string _engineName{};
-        uint32_t _engineVersion{0};
-        XrVersion _apiVersion{XR_CURRENT_API_VERSION};
+        std::string _appName{"OPenXR Applicaiton"};
+        uint32_t _appVersion{1};
+        std::string _engineName{"OpenXR Engine"};
+        uint32_t _engineVersion{1};
+        XrVersion _apiVersion{XR_MAKE_VERSION(1, 0, 34)};
         mutable std::unique_ptr<GraphicsContextCreation> graphicsContextCreation;
         XrFormFactor _formFactor{XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY};
         std::vector<cstring> extensions{

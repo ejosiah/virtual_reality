@@ -53,7 +53,7 @@ struct ClearScreen : public vr::VulkanRenderer {
         int colorIndex = static_cast<int>(elapsedTimeSeconds/5)%3;
         graphicsService().scoped([&](auto cmdBuffer){
             auto info = makeStruct<VkRenderingInfo>();
-            info.flags = VK_RENDERING_CONTENTS_INLINE_BIT_EXT;
+            info.flags = 0;
             info.renderArea = {{0, 0}, {swapChain.width, swapChain.height}};
             info.layerCount = 1;
             info.colorAttachmentCount = 1;
