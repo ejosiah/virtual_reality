@@ -194,7 +194,7 @@ public:
                 .addActionSet(
                         vr::ActionSetSpecification()
                             .name("main")
-                            .addAction("a", vr::Source::RIGHT_HAND, vr::Identifier::A, vr::Component::CLICK)
+                            .addAction("a", vr::Location::RIGHT_HAND, vr::Identifier::A, vr::Component::CLICK)
                         )
                 .addSwapChain(
                     vr::SwapchainSpecification()

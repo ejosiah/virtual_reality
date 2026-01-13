@@ -13,7 +13,7 @@ namespace vr {
 
     inline namespace input {
 
-        enum class Source {
+        enum class Location {
             LEFT_HAND,
             RIGHT_HAND,
             HEAD,
@@ -66,7 +66,7 @@ namespace vr {
         };
 
         struct Input {
-            Source source;
+            Location location;
             Identifier identifier;
             Component component;
         };
@@ -83,7 +83,7 @@ namespace vr {
 
             [[nodiscard]] virtual std::optional<std::string> path(const Input &input) const {
                 try {
-                    return std::format("{}/{}{}", path(input.source), path(input.identifier), path(input.component));
+                    return std::format("{}/{}{}", path(input.location), path(input.identifier), path(input.component));
                 }catch(...){
                     return {};
                 }
@@ -115,17 +115,17 @@ namespace vr {
             }
 
             [[nodiscard]]
-            static std::string path(Source source) {
+            static std::string path(Location source) {
                 switch (source) {
-                    case Source::LEFT_HAND:
+                    case Location::LEFT_HAND:
                         return "/user/hand/left";
-                    case Source::RIGHT_HAND:
+                    case Location::RIGHT_HAND:
                         return "/user/hand/right";
-                    case Source::HEAD:
+                    case Location::HEAD:
                         return "/user/head";
-                    case Source::GAME_PAD:
+                    case Location::GAME_PAD:
                         return "/user/gamepad";
-                    case Source::TREADMILL:
+                    case Location::TREADMILL:
                         return "/user/treadmill";
                 }
                 THROW("INVALID SOURCE, THIS WE SHOULD NEVER REACH HERE");
@@ -179,7 +179,7 @@ namespace vr {
             [[nodiscard]]
             std::optional<std::string> path(const Input &input) const final {
                 Input aInput = input;
-                if (input.source == Source::LEFT_HAND) {
+                if (input.location == Location::LEFT_HAND) {
                     switch (input.identifier) {
                         case Identifier::A:
                             aInput.identifier = Identifier::X;
@@ -190,7 +190,7 @@ namespace vr {
                             break;
                     }
                 }
-                if (input.source == Source::RIGHT_HAND) {
+                if (input.location == Location::RIGHT_HAND) {
                     switch (input.identifier) {
                         case Identifier::X:
                             aInput.identifier = Identifier::A;

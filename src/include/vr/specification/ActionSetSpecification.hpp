@@ -36,13 +36,13 @@ namespace vr {
         }
 
         ActionSetSpecification& addAction(std::string_view name
-                                          , vr::input::Source source
+                                          , vr::input::Location location
                                           , vr::input::Identifier identifier
                                           , vr::input::Component component
                                           , std::string_view description = "") {
 
             description = description.empty() ? name : description;
-            _actions.insert( ActionSpecification{name.data(), description.data(), { source, identifier, component}} );
+            _actions.insert( ActionSpecification{name.data(), description.data(), {location, identifier, component}} );
             return *this;
         }
 
