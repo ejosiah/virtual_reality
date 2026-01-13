@@ -92,7 +92,9 @@ namespace vr {
         if(event.type != XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED) {
             throw cpptrace::runtime_error{"Event is not a session state changed event"};
         }
-        m_states[m_currentState]->handle(reinterpret_cast<const XrEventDataSessionStateChanged&>(event));
+        const auto stateChanged = reinterpret_cast<const XrEventDataSessionStateChanged&>(event);
+        transitionTo(stateChanged.state);
+        m_states[m_currentState]->init();
     }
     
     void SessionService::processFrame() {
@@ -339,38 +341,8 @@ namespace vr {
 
     }
 
-    void SessionStateRunning::handle(const XrEventDataSessionStateChanged &event) {
-        if(event.state == XR_SESSION_STATE_STOPPING) {
-            m_sessionService.transitionTo(XR_SESSION_STATE_STOPPING);
-            xrEndSession(m_sessionService.m_session);
-        }else {
-            SessionState::handle(event);
-        }
-    }
-
     void SessionStateRunning::endFrame() {
         m_sessionService.m_renderer->endFrame();
-    }
-
-    void SessionIdle::handle(const XrEventDataSessionStateChanged &event) {
-        const auto state = event.state;
-        if(state == XR_SESSION_STATE_READY) {
-            m_sessionService.transitionTo(state);
-            if (!m_sessionService.m_ctx.isSupported(XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO)) {
-                THROW("Stereo configuration required")
-            }
-
-            auto beginInfo = makeStruct<XrSessionBeginInfo>();
-            beginInfo.primaryViewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
-            auto result =  xrBeginSession(m_sessionService.m_session, &beginInfo);
-            LOG_ERROR(m_sessionService.m_ctx.instance, result)
-            spdlog::debug("XR session begun");
-        }else if(state == XR_SESSION_STATE_EXITING || state == XR_SESSION_STATE_LOSS_PENDING) {
-            m_sessionService.transitionTo(state);
-            CHECK_XR(xrDestroySession(m_sessionService.m_session));
-        }else {
-            SessionState::handle(event);
-        }
     }
 
 
@@ -476,4 +448,23 @@ namespace vr {
         SessionStateRunning::processFrame();
     }
 
+    void SessionReady::init() {
+        if (!m_sessionService.m_ctx.isSupported(XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO)) {
+            THROW("Stereo configuration required")
+        }
+
+        auto beginInfo = makeStruct<XrSessionBeginInfo>();
+        beginInfo.primaryViewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
+        auto result =  xrBeginSession(m_sessionService.m_session, &beginInfo);
+        LOG_ERROR(m_sessionService.m_ctx.instance, result)
+        spdlog::debug("XR session begun");
+    }
+
+    void SessionExiting::init() {
+        CHECK_XR(xrDestroySession(m_sessionService.m_session));
+    }
+
+    void SessionStopping::init() {
+        xrEndSession(m_sessionService.m_session);
+    }
 }

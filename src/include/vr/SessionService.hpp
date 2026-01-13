@@ -37,6 +37,7 @@ namespace vr {
         friend class SessionFocused;
         friend class SessionStopping;
         friend class SessionLossPending;
+        friend class SessionExiting;
 
         SessionService(
                 const Context &context
@@ -66,7 +67,7 @@ namespace vr {
             return m_currentState == XR_SESSION_STATE_EXITING;
         }
 
-        [[nodiscard]] const XrSession get() const {
+        [[nodiscard]] XrSession get() const {
             return m_session;
         }
 
@@ -116,10 +117,7 @@ namespace vr {
 
         virtual ~SessionState() = default;
 
-        virtual void handle(const XrEventDataSessionStateChanged& event) {
-            if(event.state == state()) return;
-            m_sessionService.transitionTo(event.state);
-        };
+        virtual void init() {}
 
         virtual void processFrame() {}
 
@@ -144,8 +142,6 @@ namespace vr {
 
         virtual void endFrame();
 
-        void handle(const XrEventDataSessionStateChanged &event) final;
-
     protected:
         XrFrameState m_frameState{ XR_TYPE_FRAME_STATE };
 
@@ -155,8 +151,6 @@ namespace vr {
     public:
         explicit SessionIdle(SessionService& sessionService)
         : SessionState(sessionService) {};
-
-        void handle(const XrEventDataSessionStateChanged &event) final;
 
         void processFrame() override;
 
@@ -168,6 +162,8 @@ namespace vr {
     public:
         explicit SessionReady(SessionService& sessionService)
         :SessionStateRunning(sessionService){};
+
+        void init() override;
 
         [[nodiscard]]
         XrSessionState state() const final { return XR_SESSION_STATE_READY; }
@@ -215,18 +211,10 @@ namespace vr {
         explicit SessionStopping(SessionService& sessionService)
         : SessionState(sessionService){};
 
+        void init() final;
+
         [[nodiscard]]
         XrSessionState state() const final { return XR_SESSION_STATE_STOPPING; }
-
-    };
-
-    class SessionLossPending : public SessionState {
-    public:
-        explicit SessionLossPending(SessionService& sessionService)
-        : SessionState(sessionService){};
-
-        [[nodiscard]]
-        XrSessionState state() const final { return XR_SESSION_STATE_LOSS_PENDING; }
 
     };
 
@@ -235,9 +223,20 @@ namespace vr {
         explicit SessionExiting(SessionService& sessionService)
         : SessionState(sessionService){};
 
-        [[nodiscard]]
-        XrSessionState state() const final { return XR_SESSION_STATE_EXITING; }
+        void init() final;
 
+        [[nodiscard]]
+        XrSessionState state() const override { return XR_SESSION_STATE_EXITING; }
+
+    };
+
+    class SessionLossPending : public SessionExiting {
+    public:
+        explicit SessionLossPending(SessionService& sessionService)
+        : SessionExiting(sessionService){};
+
+        [[nodiscard]]
+        XrSessionState state() const final { return XR_SESSION_STATE_LOSS_PENDING; }
     };
 
 
