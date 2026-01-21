@@ -49,6 +49,12 @@ namespace vr {
         }
 
         [[maybe_unused]]
+        SessionConfig& localFloor() {
+            _baseSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL_FLOOR;
+            return *this;
+        }
+
+        [[maybe_unused]]
         SessionConfig& stage() {
             _baseSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
             return *this;

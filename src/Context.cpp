@@ -10,6 +10,8 @@
 #endif
 #endif
 
+#include <xr/xr.hpp>
+
 #include <openxr_ext_loader.h>
 
 namespace vr {
@@ -113,11 +115,7 @@ namespace vr {
     }
 
     std::vector<XrViewConfigurationView> Context::views(XrViewConfigurationType viewType) const {
-        auto [result, views] = enumerate<XrViewConfigurationView>([&](auto size, auto ptr) {
-            return xrEnumerateViewConfigurationViews(instance, systemId, viewType, *size, size, ptr);
-        });
-        CHECK_XR(result);
-        return views;
+        return xr::enumerateViewConfigurationViews(instance, systemId, viewType);
     }
 
     void ContextCreation::validate() const {

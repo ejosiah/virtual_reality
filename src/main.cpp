@@ -1,3 +1,4 @@
+#include <vulkanizer/log.hpp>
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 #include "vr/graphics/vulkan/VulkanContext.hpp"
@@ -10,13 +11,16 @@
 #include "vr/WindowingSystem.hpp"
 
 #include "SpaceVisiualization.hpp"
+#include "SpaceVisiualization.hpp"
 #include "EnvironmentRenderer.hpp"
-#include <iostream>
+#include "ObjectTest.hpp"
+
 
 int main() {
     spdlog::set_level(spdlog::level::debug);
+    vkz::spdlog_adapter::install();
 
-    auto renderer = SpaceVisualization::shared();
+    auto renderer = ObjectTest::shared();
     auto creation = vr::ContextCreation::vulkan();
 
     creation
@@ -28,7 +32,7 @@ int main() {
                 .addLayer("VK_LAYER_KHRONOS_validation");
 
 
-    vr::SessionConfig sessionConfig = SpaceVisualization::session();
+    auto sessionConfig = ObjectTest::session();
 
     vr::Application application{
         creation

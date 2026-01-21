@@ -1,6 +1,13 @@
 #include "check.hpp"
 #include "vr/graphics/vulkan/VulkanGraphicsService.hpp"
 #include "io/FileReader.hpp"
+#include "tiny_obj_loader.h"
+#include <geom/Geometry.hpp>
+#include <util/collections.hpp>
+
+#include <stb_image.h>
+
+#include <algorithm>
 
 namespace vr {
 
@@ -52,7 +59,7 @@ namespace vr {
 
         std::vector<const char*> extensions{
             VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
-
+            VK_KHR_MULTIVIEW_EXTENSION_NAME
 #ifdef USE_MIRROR_WINDOW
             VK_KHR_SWAPCHAIN_EXTENSION_NAME
 #endif
@@ -61,8 +68,12 @@ namespace vr {
         auto dynamicRenderingFeatures = makeStruct<VkPhysicalDeviceDynamicRenderingFeatures>();
         dynamicRenderingFeatures.dynamicRendering = VK_TRUE;
 
+        auto devFeatures11 = makeStruct<VkPhysicalDeviceVulkan11Features>();
+        devFeatures11.pNext = &dynamicRenderingFeatures;
+        devFeatures11.multiview = VK_TRUE;
+
         VkDeviceCreateInfo createDeviceInfo{ VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
-        createDeviceInfo.pNext = &dynamicRenderingFeatures;
+        createDeviceInfo.pNext = &devFeatures11;
         createDeviceInfo.queueCreateInfoCount = 1;
         createDeviceInfo.pQueueCreateInfos = &queueCreateInfo;
 
@@ -76,7 +87,7 @@ namespace vr {
         createDeviceInfo.pEnabledFeatures = &features;
 
         VkResult result;
-        LOG_ERROR(xrInstance, xrCreateVulkanDeviceKHR(xrInstance, &createInfo, &m_device, &result));
+        LOG_ERROR(xrInstance, xrCreateVulkanDeviceKHR(xrInstance, &createInfo, &m_device, &result))
 
         vkGetDeviceQueue(m_device, m_graphicsFamilyIndex, 0, &m_graphicsQueue);
     }
@@ -195,6 +206,7 @@ namespace vr {
 
     void VulkanGraphicsService::setSwapChains(std::vector<SwapChain> swapchains) {
         XrResult result;
+        std::string first;
         for(auto swapchain : swapchains) {
             const auto spec = swapchain.spec;
             XrVulkanSwapChain vulkanSwapChain{spec._name, swapchain.handle, spec._width
@@ -204,31 +216,41 @@ namespace vr {
                     return xrEnumerateSwapchainImages(swapchain.handle, *sizePtr, sizePtr, reinterpret_cast<XrSwapchainImageBaseHeader *>(structPtr));
                 });
             LOG_ERROR(m_context.instance, result);
-            m_swapChains.push_back(vulkanSwapChain);
+            m_swapChains[spec._name] = vulkanSwapChain;
+
+            if(first.empty()) first = spec._name;
         }
+
+        m_firstSwapchain = m_swapChains[first];
     }
 
     const XrVulkanSwapChain &VulkanGraphicsService::getSwapChain(const std::string &name) {
-        auto itr = std::find_if(m_swapChains.begin(), m_swapChains.end(), [&name](const auto& sc){ return name == sc.name; });
-        if(itr == m_swapChains.end()){
+        if(!m_swapChains.contains(name)){
             THROW(std::format("swapChain[{}] not found", name));
         }
-        return *itr;
+        return m_swapChains.at(name);
     }
 
     const XrVulkanSwapChain &VulkanGraphicsService::getSwapChain(XrSwapchain swapchain) {
-        auto itr = std::find_if(m_swapChains.begin(), m_swapChains.end(), [&swapchain](const auto& sc){ return swapchain == sc._; });
+        auto itr = std::find_if(m_swapChains.begin(), m_swapChains.end(), [&swapchain](const auto& e){ return swapchain == e.second._; });
         if(itr == m_swapChains.end()){
             THROW(std::format("swapChain[{}] not found", (uint64_t)swapchain));
         }
-        return *itr;
+        return itr->second;
     }
 
-    VkImageView VulkanGraphicsService::createImageView(VkImageViewCreateInfo createInfo) {
+    ImageView VulkanGraphicsService::createImageView(VkImageViewCreateInfo createInfo) {
         VkImageView view;
         vkCreateImageView(m_device, &createInfo, nullptr, &view);
         m_imageViews.push_back(view);
-        return view;
+        return { view, createInfo };
+    }
+
+    Sampler VulkanGraphicsService::createSampler(VkSamplerCreateInfo createInfo) {
+        VkSampler sampler;
+        vkCreateSampler(m_device, &createInfo, nullptr, &sampler);
+        m_samplers.push_back(sampler);
+        return { sampler, createInfo };
     }
 
     void VulkanGraphicsService::copyToImage(const CopyRequest &request) {
@@ -288,6 +310,8 @@ namespace vr {
     }
 
     void VulkanGraphicsService::copy(const Buffer &src, const Buffer &dst, VkDeviceSize size, VkDeviceSize srcOffset, VkDeviceSize dstOffset) {
+        if(size <= 0) return;
+
         scoped([&](auto commandBuffer){
            VkBufferCopy region{srcOffset, dstOffset, size};
             vkCmdCopyBuffer(commandBuffer, src._, dst._, 1, &region);
@@ -414,10 +438,45 @@ namespace vr {
         return frameBuffers;
     }
 
-    Image VulkanGraphicsService::creatImage(const VkImageCreateInfo &createInfo) {
+    Image VulkanGraphicsService::createImage(const VkImageCreateInfo &createInfo) {
         auto image = allocator.allocate(createInfo);
         m_images.push_back(image);
         return image;
+    }
+
+    void VulkanGraphicsService::transferToImage(const void* src, Image dst) {
+        auto transition = makeStruct<VkHostImageLayoutTransitionInfoEXT>();
+        transition.oldLayout = dst.layout;
+        transition.newLayout = dst.layout;
+        transition.image = dst;
+
+        // TODO check against layouts in VkPhysicalDeviceHostImageCopyProperties::pCopyDstLayouts
+        if(transition.oldLayout != VK_IMAGE_LAYOUT_GENERAL) {
+            transition.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+            transition.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+            CHECK_VULKAN(vkTransitionImageLayoutEXT(m_device, 1, &transition));
+            dst.layout = transition.newLayout;
+        }
+
+        auto region = makeStruct<VkMemoryToImageCopyEXT>();
+        region.pHostPointer = src;
+        region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+        region.imageOffset = {0, 0, 0};
+        region.imageExtent = dst.info.extent;
+
+        auto copyInfo = makeStruct<VkCopyMemoryToImageInfoEXT>();
+        copyInfo.dstImage = dst;
+        copyInfo.dstImageLayout = dst.layout;
+        copyInfo.regionCount = 1;
+        copyInfo.pRegions = &region;
+
+        CHECK_VULKAN(vkCopyMemoryToImageEXT(m_device, &copyInfo));
+
+        if(transition.oldLayout != VK_IMAGE_LAYOUT_UNDEFINED && transition.oldLayout != transition.newLayout) {
+            std::swap(transition.oldLayout, transition.newLayout);
+            CHECK_VULKAN(vkTransitionImageLayoutEXT(m_device, 1, &transition));
+            dst.layout = transition.newLayout;
+        }
     }
 
     VkShaderModule VulkanGraphicsService::createShaderModule(const std::filesystem::path &path) {
@@ -566,7 +625,7 @@ namespace vr {
         auto  createInfo = makeStruct<VkSemaphoreCreateInfo>();
         CHECK_VULKAN(vkCreateSemaphore(m_device, &createInfo, nullptr, &m_transferStart));
         CHECK_VULKAN(vkCreateSemaphore(m_device, &createInfo, nullptr, &m_transferComplete));
-        const auto& xrSwapChain = m_swapChains.front();
+        const auto& xrSwapChain = m_firstSwapchain;
         m_window = WindowingSystem::createWindow(context().info.applicationInfo.applicationName, xrSwapChain.width / 2, xrSwapChain.height / 2);
         m_mirrorSwapChain = MirrorSwapChain{ .pDevice = m_physicalDevice, .device = m_device };
         m_mirrorSwapChain.createSurface(m_window, vulkanContext().instance);
@@ -621,6 +680,284 @@ namespace vr {
 
     Window &VulkanGraphicsService::window() {
         return m_window;
+    }
+
+    wavefront::Object VulkanGraphicsService::loadObject(VkDescriptorPool descriptorPool, const std::filesystem::path &path) {
+        tinyobj::attrib_t attribs;
+        std::vector<tinyobj::shape_t> shapes;
+        std::vector<tinyobj::material_t> tMaterials;
+        std::string error, warn;
+
+        if(!tinyobj::LoadObj(&attribs, &shapes, &tMaterials, &warn, &error, path.string().c_str(), path.parent_path().string().c_str())) {
+            THROW(error)
+        }
+
+        const auto numVertices = attribs.vertices.size()/3;
+        std::vector<geom::Vertex> vertices;
+        vertices.reserve(numVertices);
+
+        auto aVertices = std::span<glm::vec3>{ reinterpret_cast<glm::vec3*>(attribs.vertices.data()), numVertices };
+        auto aNormals = std::span<glm::vec3>{ reinterpret_cast<glm::vec3*>(attribs.normals.data()), attribs.normals.size()/3 };
+        auto aTexCoords = std::span<glm::vec2>{ reinterpret_cast<glm::vec2*>(attribs.texcoords.data()), attribs.texcoords.size()/3 };
+        auto aColors = std::span<glm::vec3>{ reinterpret_cast<glm::vec3*>(attribs.colors.data()), attribs.colors.size()/3 };
+
+        for(auto i = 0; i < numVertices; ++i) {
+            auto& vertex = vertices.emplace_back();
+            vertex.position = glm::vec4{aVertices[i], 1};
+            vertex.normal = aNormals.empty() ? glm::vec3{0, 1, 0} : aNormals[i];
+            vertex.uv = aTexCoords.empty() ? glm::vec2(0) : aTexCoords[i];
+            vertex.color = aColors.empty() ? glm::vec4(0.6, 0.6, 0.6, 1.0) : glm::vec4{ aColors[i], 1};
+        }
+
+        wavefront::Object object{};
+
+        std::vector<uint32_t> indexes;
+        for(auto& shape : shapes) {
+            auto& mesh = object.meshes.emplace_back();
+            mesh.firstIndex = indexes.size();
+            mesh.indexCount = shape.mesh.indices.size();
+            mesh.vertexOffset = std::distance(vertices.data(), &vertices[mesh.firstIndex]);
+            auto mIndexes = map_range(shape.mesh.indices, [](auto index){ return static_cast<uint32_t>(index.vertex_index); });
+            indexes.insert(indexes.end(), mIndexes.begin(), mIndexes.end());
+        }
+
+        int numTextures = 0;
+        std::map<std::string, int> texturePaths;
+        std::vector<wavefront::Material> materials;
+        for(const auto& tMat : tMaterials) {
+            auto& material = materials.emplace_back();
+            material.diffuse = { tMat.diffuse[0], tMat.diffuse[1], tMat.diffuse[2] };
+            material.ambient = { tMat.ambient[0], tMat.ambient[1], tMat.ambient[2] };
+            material.specular = { tMat.specular[0], tMat.specular[1], tMat.specular[2] };
+            material.transmittance = { tMat.transmittance[0], tMat.transmittance[1], tMat.transmittance[2] };
+            material.emission = { tMat.emission[0], tMat.emission[1], tMat.emission[2] };
+            material.ior = tMat.ior;
+            material.opacity = tMat.dissolve;
+
+            if(!tMat.ambient_texname.empty()) {
+                if(!texturePaths.contains(tMat.ambient_texname)) {
+                    texturePaths[tMat.ambient_texname] = numTextures++;
+                }
+                material.ambientTexId = texturePaths.at(tMat.ambient_texname);
+            }
+
+            if(!tMat.diffuse_texname.empty()) {
+                if(!texturePaths.contains(tMat.diffuse_texname)) {
+                    texturePaths[tMat.diffuse_texname] = numTextures++;
+                }
+                material.diffuseTexId = texturePaths.at(tMat.diffuse_texname);
+            }
+
+            if(!tMat.specular_texname.empty()) {
+                if(!texturePaths.contains(tMat.specular_texname)) {
+                    texturePaths[tMat.specular_texname] = numTextures++;
+                }
+                material.specularTexId = texturePaths.at(tMat.specular_texname);
+            }
+
+            if(!tMat.specular_texname.empty()) {
+                if(!texturePaths.contains(tMat.specular_texname)) {
+                    texturePaths[tMat.specular_texname] = numTextures++;
+                }
+                material.specularTexId = texturePaths.at(tMat.specular_texname);
+            }
+
+            if(!tMat.specular_highlight_texname.empty()) {
+                if(!texturePaths.contains(tMat.specular_highlight_texname)) {
+                    texturePaths[tMat.specular_highlight_texname] = numTextures++;
+                }
+                material.shininessTexId = texturePaths.at(tMat.specular_highlight_texname);
+            }
+
+            if(!tMat.bump_texname.empty()) {
+                if(!texturePaths.contains(tMat.bump_texname)) {
+                    texturePaths[tMat.bump_texname] = numTextures++;
+                }
+                material.normalTexId = texturePaths.at(tMat.bump_texname);
+            }
+        }
+
+        object.textures.resize(numTextures);
+        std::vector<VkImageMemoryBarrier2> barriers;
+
+        auto bufferSize = 0ULL;
+
+        for(const auto& [uri, _] : texturePaths) {
+            int w, h, c;
+            stbi_info(uri.c_str(), &w, &h, &c);
+            bufferSize += w * h * STBI_rgb_alpha;
+        }
+        bufferSize = std::max(std::max(BYTE_SIZE(indexes), bufferSize), std::max(BYTE_SIZE(materials), BYTE_SIZE(vertices)));
+        auto staging = createStagingBuffer(bufferSize);
+
+        auto mapping = map(staging);
+        auto dst = reinterpret_cast<unsigned char*>(mapping._);
+        std::vector<VkCopyBufferToImageInfo2> copyInfos;
+        std::vector<VkBufferImageCopy2> regions;
+        auto bufferOffset = 0;
+        for(const auto& [uri, index] : texturePaths) {
+            int w, h, c;
+            auto cpuImage = stbi_load(uri.c_str(), &w, &h, &c, STBI_rgb_alpha);
+
+            if(!cpuImage) THROW(std::format("unable to load {}", uri));
+
+            auto imageInfo = makeStruct<VkImageCreateInfo>();
+            imageInfo.imageType = VK_IMAGE_TYPE_2D;
+            imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+            imageInfo.extent = {static_cast<uint32_t>(w), static_cast<uint32_t>(h), 1};
+            imageInfo.mipLevels = 1;
+            imageInfo.arrayLayers = 1;
+            imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+            imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+            imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+            imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+            auto& texture = object.textures[index];
+            texture.image = createImage(imageInfo);
+
+            auto imageViewInfo = makeStruct<VkImageViewCreateInfo>();
+            imageViewInfo.image = texture.image;
+            imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            imageViewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+            imageViewInfo.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+            texture.imageView = createImageView(imageViewInfo);
+
+            auto& barrier = barriers.emplace_back();
+            barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+            barrier.srcStageMask = VK_PIPELINE_STAGE_NONE;
+            barrier.srcAccessMask = VK_ACCESS_NONE;
+            barrier.dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barrier.image = texture.image;
+            barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+
+            auto& region = regions.emplace_back();
+            region.sType = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2;
+            region.bufferOffset = bufferOffset;
+            region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+            region.imageOffset = {0, 0, 0};
+            region.imageExtent = texture.image.info.extent;
+
+            const auto imageSize = w * h * STBI_rgb_alpha;
+            std::memcpy(dst + bufferOffset, cpuImage, imageSize);
+
+            auto& copyInfo = copyInfos.emplace_back();
+            copyInfo.srcBuffer = staging;
+            copyInfo.dstImage = texture.image;
+            copyInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            copyInfo.regionCount = 1;
+
+            bufferOffset += imageSize;
+            stbi_image_free(cpuImage);
+        }
+
+        scoped([&](auto commandBuffer){
+           auto dependencyInfo = makeStruct<VkDependencyInfo>();
+           dependencyInfo.imageMemoryBarrierCount = numTextures;
+           dependencyInfo.pImageMemoryBarriers = barriers.data();
+
+            vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
+
+            for(auto i = 0; i < numTextures; ++i) {
+                auto& copyInfo = copyInfos[i];
+                copyInfo.pRegions = &regions[i];
+                vkCmdCopyBufferToImage2(commandBuffer, &copyInfo);
+
+                barriers[i].srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+                barriers[i].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+                barriers[i].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+                barriers[i].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                barriers[i].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+                barriers[i].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+                object.textures[i].image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            }
+
+            vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
+
+        });
+
+        
+        for(auto i = 0; i < shapes.size(); ++i) {
+            auto& instance = object.instances.emplace_back();
+            instance.meshId = i;
+            instance.transformId = i;
+            instance.materialId = shapes[i].mesh.material_ids.front();
+            instance.opacity = instance.materialId >= 0 ? materials[instance.materialId].opacity : 1;
+        }
+
+        object.transforms = std::vector<glm::mat4>(object.instances.size(), glm::mat4{1});
+
+        std::memcpy(mapping, vertices.data(), BYTE_SIZE(vertices));
+        object.vertices = createDeviceLocalBuffer(BYTE_SIZE(vertices), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+        copy(staging, object.vertices, BYTE_SIZE(vertices));
+
+        std::memcpy(mapping, indexes.data(), BYTE_SIZE(indexes));
+        object.indexes = createDeviceLocalBuffer(BYTE_SIZE(indexes), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+        copy(staging, object.indexes, BYTE_SIZE(indexes));
+        
+        std::memcpy(mapping, materials.data(), BYTE_SIZE(materials));
+        object.materials = createDeviceLocalBuffer(std::max(BYTE_SIZE(materials), sizeof(int)), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+        copy(staging, object.materials, BYTE_SIZE(materials));
+
+        auto samplerInfo = makeStruct<VkSamplerCreateInfo>();
+        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerInfo.magFilter =  VK_FILTER_LINEAR;
+        samplerInfo.minFilter = VK_FILTER_LINEAR;
+        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.minLod = 0;
+        samplerInfo.maxLod = 1; // TODO generate mipmaps;
+
+        object.sampler = createSampler(samplerInfo);
+        auto samplers = map_range(std::vector<Sampler>(numTextures, object.sampler), [](auto& s){return s.handle; });
+
+
+        if(!materials.empty()) {
+            object.descriptorSetLayout =
+                descriptorSetLayoutBuilder()
+                    .binding(0)
+                        .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                        .descriptorCount(materials.size())
+                        .shaderStages(VK_SHADER_STAGE_ALL_GRAPHICS)
+                    .binding(1)
+                        .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                        .descriptorCount(numTextures)
+                        .shaderStages(VK_SHADER_STAGE_ALL_GRAPHICS)
+                        .immutableSamplers(samplers.data())
+                .createLayout();
+
+            object.descriptorSet = allocate(descriptorPool, object.descriptorSetLayout, 1).front();
+            std::vector<VkWriteDescriptorSet> writes(2, makeStruct<VkWriteDescriptorSet>());
+
+            writes[0].dstSet = object.descriptorSet;
+            writes[0].dstBinding = 0;
+            writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            writes[0].descriptorCount = 1;
+            VkDescriptorBufferInfo materialInfo{object.materials, 0, VK_WHOLE_SIZE};
+            writes[0].pBufferInfo = &materialInfo;
+
+            auto imageInfos = map_range(object.textures, [](auto &texture) {
+                return VkDescriptorImageInfo{VK_NULL_HANDLE, texture.imageView,
+                                             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+            });
+            writes[1].dstSet = object.descriptorSet;
+            writes[1].dstBinding = 1;
+            writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            writes[1].descriptorCount = imageInfos.size();
+            writes[1].pImageInfo = imageInfos.data();
+
+            update(writes);
+        }
+
+        return object;
+
     }
 
 #endif

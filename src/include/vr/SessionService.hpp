@@ -89,6 +89,8 @@ namespace vr {
 
         void transitionTo(XrSessionState state);
 
+        void logSession();
+
     private:
         const Context& m_ctx;
         const SessionConfig& m_config;
@@ -96,6 +98,7 @@ namespace vr {
         std::shared_ptr<Renderer> m_renderer;
         XrSession m_session{};
         std::vector<SwapChain> m_swapchains;
+        std::map<std::string, SwapChain> m_depthSwapchains;
         XrSessionState m_currentState{XR_SESSION_STATE_UNKNOWN};
         std::unordered_map<XrSessionState, std::unique_ptr<SessionState>> m_states;
         std::vector<XrView> m_views;
@@ -121,8 +124,7 @@ namespace vr {
 
         virtual void processFrame() {}
 
-        virtual void frameLoop(const FrameInfo &frameInfo, Layers& layers) {
-        }
+        virtual void frameLoop(const FrameInfo &frameInfo, Layers& layers) {}
 
         [[nodiscard]]
         virtual XrSessionState state() const { return XR_SESSION_STATE_UNKNOWN; }

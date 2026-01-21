@@ -55,4 +55,5 @@ namespace vr {
 
         return std::make_tuple(result, list);
     }
+
 }

@@ -3,12 +3,14 @@
 #include "Transforms.hpp"
 #include "vr/specification/SwapchainSpecification.hpp"
 
+#include <vulkan/vulkan.h>
 #include <openxr/openxr.h>
 
 #include <vector>
 #include <string>
 #include <span>
 #include <variant>
+#include <optional>
 
 namespace vr {
 
@@ -46,6 +48,7 @@ namespace vr {
         XrSpace space{};
         XrTime predictedTime{};
         XrDuration predictedDuration{};
+        std::optional<ImageId> depthImageId;
     };
 
     using CompositionLayer =

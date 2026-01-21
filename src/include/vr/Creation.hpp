@@ -32,7 +32,7 @@ namespace vr {
         mutable std::vector<cstring> extensions {
 #ifndef NDEBUG
 #ifdef VK_DEBUG
-                VK_EXT_DEBUG_UTILS_EXTENSION_NAME
+            VK_EXT_DEBUG_UTILS_EXTENSION_NAME
 #endif
 #endif
         };
@@ -100,7 +100,8 @@ namespace vr {
         std::vector<cstring> extensions{
             XR_KHR_COMPOSITION_LAYER_CUBE_EXTENSION_NAME,
             XR_KHR_COMPOSITION_LAYER_EQUIRECT_EXTENSION_NAME,
-            XR_EXT_PALM_POSE_EXTENSION_NAME
+            XR_KHR_COMPOSITION_LAYER_DEPTH_EXTENSION_NAME,
+            XR_EXT_PALM_POSE_EXTENSION_NAME,
 #ifndef NDEBUG
 #ifdef XR_DEBUG
         XR_EXT_DEBUG_UTILS_EXTENSION_NAME

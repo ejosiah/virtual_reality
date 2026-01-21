@@ -7,7 +7,7 @@
 namespace vr {
 
     struct SwapchainSpecification {
-        std::string _name;
+        std::string                 _name;
         XrSwapchainCreateFlags      _createFlags{0};
         XrSwapchainUsageFlags       _usageFlags{0};
         int64_t                     _format{0};
@@ -17,6 +17,8 @@ namespace vr {
         uint32_t                    _faceCount{1};
         uint32_t                    _arraySize{1};
         uint32_t                    _mipCount{1};
+        bool                        _render{true};
+        std::string                 _depth;
 
         SwapchainSpecification& name(std::string str) {
             _name = std::move(str);
@@ -100,6 +102,16 @@ namespace vr {
         [[maybe_unused]]
         SwapchainSpecification& mipCount(uint32_t count) {
             _mipCount = count;
+            return *this;
+        }
+
+        SwapchainSpecification& noneRendering() {
+            _render = false;
+            return *this;
+        }
+
+        SwapchainSpecification& depthBuffer(std::string name) {
+            _depth = name;
             return *this;
         }
 

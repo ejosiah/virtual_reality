@@ -9,10 +9,12 @@ set(LIB_DEPENDENCIES
         spdlog
         OpenXR::openxr_loader
         Vulkan::Vulkan
+        vulkanizer
         VulkanMemoryAllocator
         cpptrace-lib
         glfw
-        glm)
+        glm
+        tinyobjloader)
 
 include_directories(${CMAKE_CURRENT_LIST_DIR}/include)
 include_directories(${CMAKE_CURRENT_LIST_DIR}/../dependencies/stb)
@@ -20,9 +22,12 @@ include_directories(${CMAKE_CURRENT_LIST_DIR}/../dependencies/stb)
 add_definitions(
         -DXR_USE_GRAPHICS_API_VULKAN
         -DVK_DEBUG
+        -DXR_DEBUG
         -DGLM_FORCE_RADIANS
         -DGLFW_INCLUDE_VULKAN
         -DGLM_FORCE_SWIZZLE
+        -DUSE_MIRROR_WINDOW
+        -DVKZ_SPD_LOG_ADAPTOR
 )
 
 add_executable(vr_app main.cpp ${HEADER_FILES} ${SOURCE_FILES})

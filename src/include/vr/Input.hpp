@@ -265,6 +265,8 @@ namespace vr {
                     return  XR_ACTION_TYPE_POSE_INPUT;
                 case Component::VIBRATE:
                     return XR_ACTION_TYPE_VIBRATION_OUTPUT;
+                default:
+                    throw cpptrace::runtime_error("Invalid component");
             }
         }
 

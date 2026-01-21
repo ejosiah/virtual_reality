@@ -445,3 +445,43 @@ template<>
 inline VkDebugUtilsObjectNameInfoEXT makeStruct<VkDebugUtilsObjectNameInfoEXT>() {
     return { VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
 }
+
+template<>
+inline VkCopyMemoryToImageInfoEXT makeStruct<VkCopyMemoryToImageInfoEXT>() {
+    return { VK_STRUCTURE_TYPE_COPY_MEMORY_TO_IMAGE_INFO_EXT };
+}
+
+template<>
+inline VkMemoryToImageCopyEXT makeStruct<VkMemoryToImageCopyEXT>() {
+    return { VK_STRUCTURE_TYPE_MEMORY_TO_IMAGE_COPY_EXT };
+}
+
+template<>
+inline VkHostImageLayoutTransitionInfoEXT makeStruct<VkHostImageLayoutTransitionInfoEXT>() {
+    return { VK_STRUCTURE_TYPE_HOST_IMAGE_LAYOUT_TRANSITION_INFO_EXT };
+}
+
+template<>
+inline VkSamplerCreateInfo makeStruct<VkSamplerCreateInfo>() {
+    return { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+}
+
+template<>
+inline VkBufferImageCopy2 makeStruct<VkBufferImageCopy2>() {
+    return { VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2 };
+}
+
+template<>
+inline XrCompositionLayerDepthInfoKHR makeStruct<XrCompositionLayerDepthInfoKHR>() {
+    return { XR_TYPE_COMPOSITION_LAYER_DEPTH_INFO_KHR };
+}
+
+template<>
+inline VkPhysicalDeviceVulkan11Features makeStruct<VkPhysicalDeviceVulkan11Features>() {
+    return { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES };
+}
+
+template<>
+inline VkDependencyInfo makeStruct<VkDependencyInfo>() {
+    return { VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
+}

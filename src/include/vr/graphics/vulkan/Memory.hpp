@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
 
+#include <cassert>
 #include <cinttypes>
 #include <map>
 
@@ -12,12 +13,44 @@ namespace vr {
         VkBuffer _{};
         VkBufferCreateInfo info{};
         VmaAllocation allocation{};
+
+        operator VkBuffer() const {
+            return _;
+        }
     };
 
     struct Image {
         VkImage handle{};
         VkImageCreateInfo info{};
         VmaAllocation allocation{};
+        VkImageLayout layout{VK_IMAGE_LAYOUT_UNDEFINED};
+
+        operator VkImage() const {
+            return handle;
+        }
+    };
+
+    struct ImageView {
+        VkImageView handle{};
+        VkImageViewCreateInfo info{};
+
+        operator VkImageView() const {
+            return handle;
+        }
+    };
+
+    struct Sampler {
+        VkSampler handle{};
+        VkSamplerCreateInfo info{};
+
+        operator VkSampler() const {
+            return handle;
+        }
+    };
+
+    struct Texture {
+        Image image;
+        ImageView imageView;
     };
 
     struct Mapping {
@@ -36,6 +69,11 @@ namespace vr {
                 _ = nullptr;
             }
         }
+
+        operator void*() const {
+            return _;
+        }
+
     private:
         VmaAllocation allocation{};
         VmaAllocator allocator{};

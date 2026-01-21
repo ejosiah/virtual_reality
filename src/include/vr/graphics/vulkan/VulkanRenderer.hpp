@@ -9,6 +9,10 @@ namespace vr {
     public:
         ~VulkanRenderer() override = default;
 
+        void paused(const FrameInfo &frameInfo, Layers &layers) override {
+            render(frameInfo, layers);
+        }
+
         VulkanGraphicsService& graphicsService() {
             return *reinterpret_cast<VulkanGraphicsService*>(m_graphics.get());
         }

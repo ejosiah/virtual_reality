@@ -27,4 +27,8 @@ struct XrVulkanSwapChain{
         return images.end();
     }
 
+    operator XrSwapchain() const {
+        return _;
+    }
+
 };

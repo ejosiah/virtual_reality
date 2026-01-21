@@ -4,6 +4,8 @@
 #include <glm/glm.hpp>
 
 #include <vector>
+#include <array>
+#include <string>
 
 namespace geom {
 
@@ -37,6 +39,46 @@ namespace geom {
         std::vector<Vertex> vertices;
         std::vector<uint32_t> indices;
         Topology topology;
+    };
+
+    struct ClipSpace{
+
+        struct Quad{
+            static constexpr  std::array<glm::vec2, 8> positions{
+                    glm::vec2{-1, -1},glm::vec2{0, 0},
+                    glm::vec2{-1, 1}, glm::vec2{0, 1},
+                    glm::vec2{1, -1}, glm::vec2{1, 0},
+                    glm::vec2{1, 1}, glm::vec2{1, 1}
+            };
+            static constexpr VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+
+            static constexpr VkFrontFace  frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        };
+
+        struct Triangle{
+            static constexpr  std::array<glm::vec2, 6> positions{
+                    glm::vec2{-1, 1},glm::vec2{0, 1},
+                    glm::vec2{1, 1}, glm::vec2{1, 1},
+                    glm::vec2{0, -1}, glm::vec2{0.5, 0.5},
+            };
+            static constexpr VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+            static constexpr VkFrontFace  frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        };
+
+
+        static std::vector<VkVertexInputBindingDescription> bindingDescription(){
+            return {
+                    {0, 2 * sizeof(glm::vec2), VK_VERTEX_INPUT_RATE_VERTEX}
+            };
+        }
+
+        static std::vector<VkVertexInputAttributeDescription> attributeDescriptions(){
+            return {
+                    {0, 0, VK_FORMAT_R32G32_SFLOAT, 0},
+                    {1, 0, VK_FORMAT_R32G32_SFLOAT, sizeof(glm::vec2)}
+            };
+        }
     };
     
     /**

@@ -1,6 +1,7 @@
 #include "check.hpp"
 #include "vr/SessionService.hpp"
 #include "xr_struct_mapping.hpp"
+#include "xr/xr.hpp"
 #include "vr/Enumerators.hpp"
 #include "vr/ToString.hpp"
 #include "util/collections.hpp"
@@ -61,6 +62,7 @@ namespace vr {
         createInfo.systemId = m_ctx.systemId;
         createInfo.next = &graphicsBinding;
         LOG_ERROR(m_ctx.instance, xrCreateSession(m_ctx.instance, &createInfo, &m_session))
+        logSession();
     }
 
     void SessionService::createReferenceSpaces() {
@@ -211,6 +213,7 @@ namespace vr {
             // TODO filter setA/SetB/SetC
         }
 
+        // TODO - Base selection of interaction profile on runtime
 //        bindActions(InteractionProfile::Simple());
         bindActions(InteractionProfile::OculusTouchController());
 
@@ -229,7 +232,7 @@ namespace vr {
                 if(sPath.has_value()) {
                     XrPath path;
                     CHECK_XR(xrStringToPath(m_ctx.instance, sPath->c_str(), &path));
-                    auto &binding = push_use(actionSuggestedBinding);
+                    auto &binding = actionSuggestedBinding.emplace_back();
                     binding.action = action._;
                     binding.binding = path;
                 }
@@ -247,6 +250,16 @@ namespace vr {
 
     }
 
+    void SessionService::logSession() {
+        auto [res, spaces] = enumerate<XrReferenceSpaceType>(m_session, [](auto session, auto in, auto out, auto data){
+            return xrEnumerateReferenceSpaces(session, in, out, data);
+        });
+        CHECK_XR(res);
+        spdlog::info("Available reference space types:");
+        for(auto space : spaces) {
+            spdlog::info("\t{}", toString(space));
+        }
+    }
 
 
     void SessionStateRunning::beginFrame() {
@@ -263,6 +276,7 @@ namespace vr {
 
         const auto session = m_sessionService.m_session;
         const auto& swapchains = m_sessionService.m_swapchains;
+        const auto xrInstance = m_sessionService.m_ctx.instance;
 
         xrWaitFrame(session, XR_NULL_HANDLE, &m_frameState);
 
@@ -272,11 +286,12 @@ namespace vr {
                 beginFrame();
 
                 for(const auto& swapchain : swapchains) {
+                    if(!swapchain.spec._render) continue;
 
                     uint32_t imageIndex;
                     xrAcquireSwapchainImage(swapchain.handle, nullptr, &imageIndex);
                     ImageId imageId{swapchain.handle, imageIndex};
-                    auto waitInfo = makeStruct<XrSwapchainImageWaitInfo>();
+                    static auto waitInfo = makeStruct<XrSwapchainImageWaitInfo>();
                     waitInfo.timeout = XR_INFINITE_DURATION;
 
                     if (XR_UNQUALIFIED_SUCCESS(xrWaitSwapchainImage(swapchain.handle, &waitInfo))) {
@@ -287,21 +302,16 @@ namespace vr {
                         viewLocateInfo.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
                         viewLocateInfo.displayTime = m_frameState.predictedDisplayTime;
                         viewLocateInfo.space = m_sessionService.m_baseSpace;
-                        uint32_t numViews;
-                        xrLocateViews(session, &viewLocateInfo, &viewState, 0, &numViews, XR_NULL_HANDLE);
-                        std::vector<XrView> views(numViews, {XR_TYPE_VIEW});
-                        LOG_ERROR(m_sessionService.m_ctx.instance,
-                                  xrLocateViews(session, &viewLocateInfo, &viewState, numViews, &numViews,
-                                                views.data()));
+
+                        auto views = xr::locateViews(session, viewLocateInfo, viewState, xrInstance);
+
                         ViewInfo viewInfo{viewState, views};
 
                         // get space locations
                         std::vector<SpaceLocation> spaceLocations;
                         spaceLocations.reserve(m_sessionService.m_spaces.size());
                         for (const auto &[name, space]: m_sessionService.m_spaces) {
-                            auto location = makeStruct<XrSpaceLocation>();
-                            xrLocateSpace(space, m_sessionService.m_baseSpace, m_frameState.predictedDisplayTime,
-                                          &location);
+                            auto location = xr::locateSpace(space, m_sessionService.m_baseSpace, m_frameState.predictedDisplayTime);
                             spaceLocations.push_back({name, convert(location.pose)});
                         }
                         if (!spaceLocations.empty()) {
@@ -312,6 +322,7 @@ namespace vr {
                                    m_frameState.predictedDisplayTime, m_frameState.predictedDisplayPeriod}, layers);
 
 #ifdef USE_MIRROR_WINDOW
+                        // FIXME don't mirror here, wait for all layers to be composed and then use them to compose the mirror
                         m_sessionService.m_graphics->mirror(imageId);
 #endif
 

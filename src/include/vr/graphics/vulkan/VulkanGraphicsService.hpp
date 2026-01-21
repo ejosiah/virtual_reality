@@ -2,6 +2,7 @@
 
 #include <GLFW/glfw3.h>
 #include "../Graphics.hpp"
+#include "../../../util/util.hpp"
 #include "xr_struct_mapping.hpp"
 #include "VulkanContext.hpp"
 #include <vulkan/vulkan.h>
@@ -9,6 +10,8 @@
 #include "openxr_ext_loader.h"
 #include "VkEnumerators.hpp"
 #include "XrVulkanSwapChain.hpp"
+#include "../../../Wavefront.hpp"
+
 #ifdef USE_MIRROR_WINDOW
 #include "vr/WindowingSystem.hpp"
 #endif
@@ -19,6 +22,7 @@
 #include <sstream>
 #include <format>
 #include <span>
+#include <vulkanizer/builders.hpp>
 
 #include <filesystem>
 
@@ -28,9 +32,14 @@ namespace vr {
     struct Link {
         T* cpu{};
         Mapping gpu{};
+        Buffer source;
 
         void unlink() {
             gpu.unmap();
+        }
+
+        operator VkBuffer() const {
+            return source._;
         }
     };
 
@@ -84,6 +93,7 @@ namespace vr {
 
         glm::mat4 projection(const XrFovf &fov, float zNear, float zFar) final;
 
+        [[maybe_unused]]
         VkCommandBuffer commandBuffer(uint32_t imageIndex);
 
         static std::shared_ptr<GraphicsService> shared(const Context& context);
@@ -136,7 +146,9 @@ namespace vr {
             vkFreeCommandBuffers(m_device, m_scopedCommandPool, 1, &commandBuffer);
         }
 
-        VkImageView createImageView(VkImageViewCreateInfo createInfo);
+        ImageView createImageView(VkImageViewCreateInfo createInfo);
+
+        Sampler createSampler(VkSamplerCreateInfo createInfo);
 
         void copyToImage(const CopyRequest& request);
 
@@ -144,14 +156,22 @@ namespace vr {
 
         template<typename T>
         Link<T> link(VkBufferUsageFlagBits usage, uint32_t count = 1) {
-            auto buffer = createMappableBuffer(sizeof(T) * count, usage);
             Link<T> link{};
-            link.gpu = map(buffer);
+            link.source = createMappableBuffer(sizeof(T) * count, usage);
+            link.gpu = map(link.source);
             link.cpu = link.gpu.template as<T>();
             return link;
         }
 
         VkDescriptorPool createDescriptorPool(const VkDescriptorPoolCreateInfo& createInfo);
+
+        vkz::DescriptorSetLayoutBuilder descriptorSetLayoutBuilder() {
+            return vkz::descriptorset_layout_builder({ m_physicalDevice, m_device });
+        }
+
+        vkz::GraphicsPipelineBuilder graphicsPipelineBuilder() {
+            return vkz::graphics_pipeline_builder({ m_physicalDevice, m_device });
+        }
 
         VkDescriptorSetLayout createDescriptorSetLayout(VkDescriptorSetLayoutCreateInfo createInfo);
 
@@ -173,9 +193,13 @@ namespace vr {
 
         std::vector<VkFramebuffer> createFrameBuffers(const std::vector<VkFramebufferCreateInfo> &createInfos);
 
-        Image creatImage(const VkImageCreateInfo &createInfo);
+        Image createImage(const VkImageCreateInfo &createInfo);
+
+        void transferToImage(const void* src, Image dst);
 
         void submitToGraphicsQueue(const VkSubmitInfo &submitInfo);
+
+        wavefront::Object loadObject(VkDescriptorPool descriptorPool, const std::filesystem::path& path);
 
 #ifdef USE_MIRROR_WINDOW
         void initMirrorWindow() final;
@@ -231,7 +255,8 @@ namespace vr {
         VkDevice m_device{VK_NULL_HANDLE};
         VkQueue m_graphicsQueue{VK_NULL_HANDLE};
         uint32_t m_graphicsFamilyIndex{};
-        std::vector<XrVulkanSwapChain> m_swapChains;
+        std::map<std::string, XrVulkanSwapChain> m_swapChains;
+        XrVulkanSwapChain m_firstSwapchain{};
         VmaMemoryAllocator allocator;
         VkCommandPool m_commandPool;
         VkCommandPool m_scopedCommandPool;
@@ -250,6 +275,7 @@ namespace vr {
         mutable std::vector<VkFramebuffer> m_frameBuffers;
         mutable std::vector<Image> m_images;
         mutable std::vector<VkImageView> m_imageViews;
+        mutable std::vector<VkSampler> m_samplers;
         mutable std::vector<VkShaderModule> m_shaders;
 
 #ifdef USE_MIRROR_WINDOW

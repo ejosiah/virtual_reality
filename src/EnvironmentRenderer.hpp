@@ -239,15 +239,15 @@ public:
     }
     
 private:
-    static constexpr vr::cstring rootPath{R"(C:\Users\Josiah Ebhomenye\OneDrive\media\textures\skybox\005)"};
-    static constexpr vr::cstring equirectPath1{R"(C:\Users\Josiah Ebhomenye\Downloads\meadow_4k.hdr)"};
-    static constexpr vr::cstring equirectPath2{R"(C:\Users\Josiah Ebhomenye\Downloads\small_empty_room_3_4k.hdr)"};
+    static constexpr vr::cstring rootPath{R"(C:\Users\joebh\OneDrive\media\textures\skybox\005)"};
+    static constexpr vr::cstring equirectPath1{R"(C:\Users\joebh\Downloads\meadow_4k.hdr)"};
+    static constexpr vr::cstring equirectPath2{R"(C:\Users\joebh\Downloads\small_empty_room_3_4k.hdr)"};
     static constexpr std::array<vr::cstring, 6> faces {
         "right", "left", "top", "bottom", "front", "back"
     };
 
     XrCompositionLayerCubeKHR m_cubemapLayer{ XR_TYPE_COMPOSITION_LAYER_CUBE_KHR };
     XrCompositionLayerEquirectKHR m_equiRectLayer{ XR_TYPE_COMPOSITION_LAYER_EQUIRECT_KHR };
-    XrCompositionLayerBaseHeader* m_currentLayer;
+    XrCompositionLayerBaseHeader* m_currentLayer{};
     EnvType envType{EnvType::CUBE_MAP};
 };

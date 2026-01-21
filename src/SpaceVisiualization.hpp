@@ -8,6 +8,8 @@
 #include "xform/xforms.hpp"
 #include "vr/Models.hpp"
 
+#include <vulkanizer/builders.hpp>
+
 #include <algorithm>
 #include <array>
 
@@ -171,7 +173,7 @@ public:
             createImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
             createImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-            m_depthBuffers[vi].image = graphicsService().creatImage(createImageInfo);
+            m_depthBuffers[vi].image = graphicsService().createImage(createImageInfo);
 
             createViewInfo.format = m_depthBuffers[vi].format;
             createViewInfo.image = m_depthBuffers[vi].image.handle;
@@ -219,25 +221,14 @@ public:
     }
 
     void createDescriptorSetLayout() {
-        std::array<VkDescriptorSetLayoutBinding, 1> bindings{};
-        bindings[0].binding = 0;
-        bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        bindings[0].descriptorCount = 1;
-        bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        
-//        bindings[1].binding = 1;
-//        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-//        bindings[1].descriptorCount = 1;
-//        bindings[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        
-        auto createInfo = makeStruct<VkDescriptorSetLayoutCreateInfo>();
-        createInfo.flags = 0;
-        createInfo.bindingCount = bindings.size();
-        createInfo.pBindings = bindings.data();
-        
-        
-        m_descriptorSetLayout = graphicsService().createDescriptorSetLayout(createInfo);
-        
+        m_descriptorSetLayout =
+            graphicsService().descriptorSetLayoutBuilder()
+                .binding(0)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                    .descriptorCount(1)
+                    .shaderStages(VK_SHADER_STAGE_VERTEX_BIT)
+                .createLayout();
+
     }
 
     void updateDescriptorSet() {
@@ -266,121 +257,54 @@ public:
 
     void createPipeline() {
         const auto& swapChain = graphicsService().getSwapChain("main");
-        const auto fWidth = static_cast<float>(swapChain.width);
-        const auto fHeight = static_cast<float>(swapChain.height);
-
-        // ShaderStage
-        auto vModule = graphicsService().createShaderModule(R"(..\..\..\src\resources\shaders\geom.vert.spv)");
-        auto vertexShaderStage = makeStruct<VkPipelineShaderStageCreateInfo>();
-        vertexShaderStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
-        vertexShaderStage.module = vModule;
-        vertexShaderStage.pName = "main";
-
-
-        auto fModule = graphicsService().createShaderModule(R"(..\..\..\src\resources\shaders\geom.frag.spv)");
-        auto fragmentShaderModule = makeStruct<VkPipelineShaderStageCreateInfo>();
-        fragmentShaderModule.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-        fragmentShaderModule.module = fModule;
-        fragmentShaderModule.pName = "main";
-
-        std::array<VkPipelineShaderStageCreateInfo, 2> stages{ vertexShaderStage, fragmentShaderModule };
-
-        // Vertex Input State
-        VkVertexInputBindingDescription vertexBinding{ 0, sizeof(geom::Vertex), VK_VERTEX_INPUT_RATE_VERTEX };
-        std::array<VkVertexInputAttributeDescription, 6> attributeDescriptions {{
-                {0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetOf(geom::Vertex, position)},
-                {1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetOf(geom::Vertex, normal)},
-                {2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetOf(geom::Vertex, tangent)},
-                {3, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetOf(geom::Vertex, bitangent)},
-                {4, 0, VK_FORMAT_R32G32_SFLOAT, offsetOf(geom::Vertex, uv)},
-                {5, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetOf(geom::Vertex, color)},
-        }};
-        auto vertexInputState = makeStruct<VkPipelineVertexInputStateCreateInfo>();
-        vertexInputState.vertexBindingDescriptionCount = 1;
-        vertexInputState.pVertexBindingDescriptions = &vertexBinding;
-        vertexInputState.vertexAttributeDescriptionCount = attributeDescriptions.size();
-        vertexInputState.pVertexAttributeDescriptions = attributeDescriptions.data();
-
-
-        // Input Assembly
-        auto inputAssemblyState = makeStruct<VkPipelineInputAssemblyStateCreateInfo>();
-        inputAssemblyState.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-        inputAssemblyState.primitiveRestartEnable = VK_FALSE;
-
-        // Tessellation State
-        auto tessellationState = makeStruct<VkPipelineTessellationStateCreateInfo>();
-
-        // View port
-        VkViewport viewport{ 0, 0, fWidth, fHeight, 0, 1};
-        VkRect2D scissor{{0, 0}, {swapChain.width, swapChain.height}};
-        auto viewportState = makeStruct<VkPipelineViewportStateCreateInfo>();
-        viewportState.viewportCount = 1;
-        viewportState.pViewports = &viewport;
-        viewportState.scissorCount = 1;
-        viewportState.pScissors = &scissor;
-
-        // Rasterization State
-        auto rasterState = makeStruct<VkPipelineRasterizationStateCreateInfo>();
-        rasterState.depthClampEnable = VK_FALSE;
-        rasterState.polygonMode = VK_POLYGON_MODE_FILL;
-        rasterState.cullMode = VK_CULL_MODE_BACK_BIT;
-        rasterState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-        rasterState.lineWidth = 1.0f;
-
-        // Multisample state
-        auto multisampleState = makeStruct<VkPipelineMultisampleStateCreateInfo>();
-        multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-
-        // Depth and Stencil state
-        auto depthStencilState = makeStruct<VkPipelineDepthStencilStateCreateInfo>();
-        depthStencilState.depthTestEnable = VK_TRUE;
-        depthStencilState.depthWriteEnable = VK_TRUE;
-        depthStencilState.depthCompareOp = VK_COMPARE_OP_LESS;
-        depthStencilState.minDepthBounds = 0;
-        depthStencilState.maxDepthBounds = 1;
-        
-        // color blend state
-        VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-        colorBlendAttachment.blendEnable = VK_FALSE;
-        colorBlendAttachment.colorWriteMask =
-                VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-        auto colorBlendState = makeStruct<VkPipelineColorBlendStateCreateInfo>();
-        colorBlendState.attachmentCount = 1;
-        colorBlendState.pAttachments = &colorBlendAttachment;
-
-        // Dynamic state
-        auto dynamicState = makeStruct<VkPipelineDynamicStateCreateInfo>();
-
-        auto pipelineLayoutCreateInfo = makeStruct<VkPipelineLayoutCreateInfo>();
-        pipelineLayoutCreateInfo.setLayoutCount = 1;
-        pipelineLayoutCreateInfo.pSetLayouts = &m_descriptorSetLayout;
-        VkPushConstantRange constants{VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Mvp)};
-        pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
-        pipelineLayoutCreateInfo.pPushConstantRanges = &constants;
-
-
-        // pipeline layout
-        m_pipeline.layout = graphicsService().createPipelineLayout(pipelineLayoutCreateInfo);
-
-
-        auto createInfo = makeStruct<VkGraphicsPipelineCreateInfo>();
-        createInfo.stageCount = stages.size();
-        createInfo.pStages = stages.data();
-        createInfo.pVertexInputState = &vertexInputState;
-        createInfo.pInputAssemblyState = &inputAssemblyState;
-        createInfo.pTessellationState = &tessellationState;
-        createInfo.pViewportState = &viewportState;
-        createInfo.pRasterizationState = &rasterState;
-        createInfo.pMultisampleState = &multisampleState;
-        createInfo.pDepthStencilState = &depthStencilState;
-        createInfo.pColorBlendState = &colorBlendState;
-        createInfo.pDynamicState = &dynamicState;
-        createInfo.layout = m_pipeline.layout;
-        createInfo.renderPass = m_renderPass;
-        createInfo.subpass = 0;
-
-        m_pipeline._ = graphicsService().createGraphicsPipeline(createInfo);
-
+        m_pipeline._ =
+            graphicsService().graphicsPipelineBuilder()
+                .shaderStage()
+                    .vertexShader(R"(..\..\..\src\resources\shaders\geom.vert.spv)")
+                    .fragmentShader(R"(..\..\..\src\resources\shaders\geom.frag.spv)")
+                .vertexInputState()
+                    .addVertexBindingDescription(0, sizeof(geom::Vertex), VK_VERTEX_INPUT_RATE_VERTEX)
+                    .addVertexAttributeDescription(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetOf(geom::Vertex, position))
+                    .addVertexAttributeDescription(1, 0, VK_FORMAT_R32G32B32_SFLOAT,    offsetOf(geom::Vertex, normal))
+                    .addVertexAttributeDescription(2, 0, VK_FORMAT_R32G32B32_SFLOAT,    offsetOf(geom::Vertex, tangent))
+                    .addVertexAttributeDescription(3, 0, VK_FORMAT_R32G32B32_SFLOAT,    offsetOf(geom::Vertex, bitangent))
+                    .addVertexAttributeDescription(4, 0, VK_FORMAT_R32G32_SFLOAT,       offsetOf(geom::Vertex, uv))
+                    .addVertexAttributeDescription(5, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetOf(geom::Vertex, color))
+                .inputAssemblyState()
+                    .triangles()
+                .viewportState()
+                    .viewport()
+                        .origin(0, 0)
+                        .dimension(swapChain.width, swapChain.height)
+                        .minDepth(0)
+                        .maxDepth(1)
+                    .scissor()
+                        .offset(0, 0)
+                        .extent({swapChain.width, swapChain.height})
+                    .add()
+                .rasterizationState()
+                    .polygonModeFill()
+                    .cullBackFace()
+                    .frontFaceCounterClockwise()
+                    .lineWidth(1)
+                .multisampleState()
+                    .rasterizationSamples(VK_SAMPLE_COUNT_1_BIT)
+                .depthStencilState()
+                    .enableDepthTest()
+                    .enableDepthWrite()
+                    .compareOpLess()
+                    .minDepthBounds(0)
+                    .maxDepthBounds(1)
+                .colorBlendState()
+                    .attachment()
+                    .add()
+                .layout()
+                    .addDescriptorSetLayout(m_descriptorSetLayout)
+                    .addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Mvp))
+                .renderPass(m_renderPass)
+                .subpass(0)
+                .name("space_visualization")
+            .build(m_pipeline.layout);
     }
 
     void createCommandBuffer() {

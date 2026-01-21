@@ -15,6 +15,8 @@ static PFN_vkGetAccelerationStructureDeviceAddressKHR pfn_vkGetAccelerationStruc
 static PFN_vkGetRayTracingShaderGroupHandlesKHR pfn_vkGetRayTracingShaderGroupHandlesKHR = nullptr;
 static PFN_vkCreateRayTracingPipelinesKHR pfn_vkCreateRayTracingPipelinesKHR = nullptr;
 static PFN_vkSetDebugUtilsObjectNameEXT pfn_vkSetDebugUtilsObjectNameEXT = nullptr;
+static PFN_vkCopyMemoryToImageEXT pfn_vkCopyMemoryToImageEXT = nullptr;
+static PFN_vkTransitionImageLayoutEXT pfn_vkTransitionImageLayoutEXT = nullptr;
 
 template<typename FuncType>
 inline FuncType procAddress(VkInstance instance, const char* procName){
@@ -39,8 +41,8 @@ void init_vulkan_ext(VkInstance instance){
     pfn_vkDestroyAccelerationStructureKHR = procAddress<PFN_vkDestroyAccelerationStructureKHR>(instance, "vkDestroyAccelerationStructureKHR");
     pfn_vkCreateRayTracingPipelinesKHR = procAddress<PFN_vkCreateRayTracingPipelinesKHR>(instance, "vkCreateRayTracingPipelinesKHR");
     pfn_vkGetRayTracingShaderGroupHandlesKHR = procAddress<PFN_vkGetRayTracingShaderGroupHandlesKHR>(instance, "vkGetRayTracingShaderGroupHandlesKHR");
-
-
+    pfn_vkCopyMemoryToImageEXT = procAddress<PFN_vkCopyMemoryToImageEXT>(instance, "vkCopyMemoryToImageEXT");
+    pfn_vkTransitionImageLayoutEXT = procAddress<PFN_vkTransitionImageLayoutEXT>(instance, "vkTransitionImageLayoutEXT");
 }
 
 
@@ -142,4 +144,19 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetRayTracingShaderGroupHandlesKHR(
     assert(pfn_vkGetRayTracingShaderGroupHandlesKHR);
     return pfn_vkGetRayTracingShaderGroupHandlesKHR(device, pipeline, firstGroup, groupCount, dataSize, pData);
 
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL vkCopyMemoryToImageEXT(
+        VkDevice                                    device,
+        const VkCopyMemoryToImageInfoEXT*           pCopyMemoryToImageInfo) {
+    assert(pfn_vkCopyMemoryToImageEXT);
+    return pfn_vkCopyMemoryToImageEXT(device, pCopyMemoryToImageInfo);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL vkTransitionImageLayoutEXT(
+        VkDevice                                    device,
+        uint32_t                                    transitionCount,
+        const VkHostImageLayoutTransitionInfoEXT*   pTransitions) {
+    assert(pfn_vkTransitionImageLayoutEXT);
+    return pfn_vkTransitionImageLayoutEXT(device, transitionCount, pTransitions);
 }
