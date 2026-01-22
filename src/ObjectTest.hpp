@@ -84,8 +84,8 @@ public:
         auto numImages = colorSC.images.size();
 
         VkImageViewCreateInfo createViewInfo = makeStruct<VkImageViewCreateInfo>();
-        createViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        createViewInfo.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+        createViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+        createViewInfo.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2 };
 
         for(auto i = 0; i < numImages; ++i) {
             auto& frameBuffer = m_frameBuffers.emplace_back();

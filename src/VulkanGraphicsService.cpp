@@ -65,15 +65,22 @@ namespace vr {
 #endif
         };
 
-        auto dynamicRenderingFeatures = makeStruct<VkPhysicalDeviceDynamicRenderingFeatures>();
-        dynamicRenderingFeatures.dynamicRendering = VK_TRUE;
 
         auto devFeatures11 = makeStruct<VkPhysicalDeviceVulkan11Features>();
-        devFeatures11.pNext = &dynamicRenderingFeatures;
         devFeatures11.multiview = VK_TRUE;
 
+        auto devFeatures12 = makeStruct<VkPhysicalDeviceVulkan12Features>();
+        devFeatures12.pNext = &devFeatures11;
+        devFeatures12.scalarBlockLayout = VK_TRUE;
+
+        auto devFeatures13 = makeStruct<VkPhysicalDeviceVulkan13Features>();
+        devFeatures13.pNext = &devFeatures12;
+        devFeatures13.maintenance4 = VK_TRUE;
+        devFeatures13.synchronization2 = VK_TRUE;
+        devFeatures13.dynamicRendering = VK_TRUE;
+
         VkDeviceCreateInfo createDeviceInfo{ VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
-        createDeviceInfo.pNext = &devFeatures11;
+        createDeviceInfo.pNext = &devFeatures13;
         createDeviceInfo.queueCreateInfoCount = 1;
         createDeviceInfo.pQueueCreateInfos = &queueCreateInfo;
 

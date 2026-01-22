@@ -485,3 +485,13 @@ template<>
 inline VkDependencyInfo makeStruct<VkDependencyInfo>() {
     return { VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
 }
+
+template<>
+inline VkPhysicalDeviceVulkan12Features makeStruct<VkPhysicalDeviceVulkan12Features>() {
+    return { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
+}
+
+template<>
+inline VkPhysicalDeviceVulkan13Features makeStruct<VkPhysicalDeviceVulkan13Features>() {
+    return { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
+}
