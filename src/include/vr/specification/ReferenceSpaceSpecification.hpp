@@ -30,6 +30,12 @@ struct ReferenceSpaceSpecification {
     }
 
     [[maybe_unused]]
+    ReferenceSpaceSpecification& localFloor() {
+        _referenceSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL_FLOOR;
+        return *this;
+    }
+
+    [[maybe_unused]]
     ReferenceSpaceSpecification& stage() {
         _referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
         return *this;

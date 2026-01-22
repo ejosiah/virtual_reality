@@ -700,20 +700,21 @@ namespace vr {
         }
 
         const auto numVertices = attribs.vertices.size()/3;
-        std::vector<geom::Vertex> vertices;
-        vertices.reserve(numVertices);
+        std::vector<geom::Vertex> vertices(numVertices);
 
         auto aVertices = std::span<glm::vec3>{ reinterpret_cast<glm::vec3*>(attribs.vertices.data()), numVertices };
         auto aNormals = std::span<glm::vec3>{ reinterpret_cast<glm::vec3*>(attribs.normals.data()), attribs.normals.size()/3 };
-        auto aTexCoords = std::span<glm::vec2>{ reinterpret_cast<glm::vec2*>(attribs.texcoords.data()), attribs.texcoords.size()/3 };
+        auto aTexCoords = std::span<glm::vec2>{ reinterpret_cast<glm::vec2*>(attribs.texcoords.data()), attribs.texcoords.size()/2 };
         auto aColors = std::span<glm::vec3>{ reinterpret_cast<glm::vec3*>(attribs.colors.data()), attribs.colors.size()/3 };
 
-        for(auto i = 0; i < numVertices; ++i) {
-            auto& vertex = vertices.emplace_back();
-            vertex.position = glm::vec4{aVertices[i], 1};
-            vertex.normal = aNormals.empty() ? glm::vec3{0, 1, 0} : aNormals[i];
-            vertex.uv = aTexCoords.empty() ? glm::vec2(0) : aTexCoords[i];
-            vertex.color = aColors.empty() ? glm::vec4(0.6, 0.6, 0.6, 1.0) : glm::vec4{ aColors[i], 1};
+        for(auto& shape : shapes) {
+            for(auto& index : shape.mesh.indices) {
+                auto& vertex = vertices[index.vertex_index];
+                vertex.position =  glm::vec4(aVertices[index.vertex_index], 1);
+                vertex.normal = aNormals.empty() ? glm::vec3{0} :  aNormals[index.normal_index];
+                vertex.color = aColors.empty() ? glm::vec4{0} :  glm::vec4{ aColors[index.vertex_index], 1};
+                vertex.uv = aTexCoords.empty() ? glm::vec2{0} :  aTexCoords[index.texcoord_index];
+            }
         }
 
         wavefront::Object object{};
@@ -727,6 +728,7 @@ namespace vr {
             auto mIndexes = map_range(shape.mesh.indices, [](auto index){ return static_cast<uint32_t>(index.vertex_index); });
             indexes.insert(indexes.end(), mIndexes.begin(), mIndexes.end());
         }
+        object.indexCount = indexes.size();
 
         int numTextures = 0;
         std::map<std::string, int> texturePaths;
@@ -935,13 +937,15 @@ namespace vr {
                         .shaderStages(VK_SHADER_STAGE_ALL_GRAPHICS)
                     .binding(1)
                         .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                        .descriptorCount(numTextures)
+                        .descriptorCount(std::max(1, numTextures))
                         .shaderStages(VK_SHADER_STAGE_ALL_GRAPHICS)
                         .immutableSamplers(samplers.data())
                 .createLayout();
 
             object.descriptorSet = allocate(descriptorPool, object.descriptorSetLayout, 1).front();
-            std::vector<VkWriteDescriptorSet> writes(2, makeStruct<VkWriteDescriptorSet>());
+
+            const auto numWrites = object.textures.empty() ? 1 : 2;
+            std::vector<VkWriteDescriptorSet> writes(numWrites, makeStruct<VkWriteDescriptorSet>());
 
             writes[0].dstSet = object.descriptorSet;
             writes[0].dstBinding = 0;
@@ -950,15 +954,17 @@ namespace vr {
             VkDescriptorBufferInfo materialInfo{object.materials, 0, VK_WHOLE_SIZE};
             writes[0].pBufferInfo = &materialInfo;
 
-            auto imageInfos = map_range(object.textures, [](auto &texture) {
-                return VkDescriptorImageInfo{VK_NULL_HANDLE, texture.imageView,
-                                             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-            });
-            writes[1].dstSet = object.descriptorSet;
-            writes[1].dstBinding = 1;
-            writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            writes[1].descriptorCount = imageInfos.size();
-            writes[1].pImageInfo = imageInfos.data();
+            if(numWrites > 1) {
+                auto imageInfos = map_range(object.textures, [](auto &texture) {
+                    return VkDescriptorImageInfo{VK_NULL_HANDLE, texture.imageView,
+                                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+                });
+                writes[1].dstSet = object.descriptorSet;
+                writes[1].dstBinding = 1;
+                writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                writes[1].descriptorCount = imageInfos.size();
+                writes[1].pImageInfo = imageInfos.data();
+            }
 
             update(writes);
         }

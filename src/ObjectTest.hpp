@@ -28,6 +28,7 @@ public:
         createDescriptorSetLayouts();
         updateDescriptorSets();
         initFloor();
+        createPipelines();
     }
 
     void setupLayers() {
@@ -185,6 +186,54 @@ public:
                 .build(m_floor.pipeline.layout);
     }
 
+    void createPipelines() {
+        auto& swapchain = graphicsService().getSwapChain("color");
+        m_modelPipeline.handle =
+            graphicsService().graphicsPipelineBuilder()
+                .shaderStage()
+                    .vertexShader(R"(..\..\..\src\resources\shaders\object.vert.spv)")
+                    .fragmentShader(R"(..\..\..\src\resources\shaders\object.frag.spv)")
+                .vertexInputState()
+                    .addVertexBindingDescriptions(geom::Vertex::bindingDisc())
+                    .addVertexAttributeDescriptions(geom::Vertex::attributeDisc())
+                .inputAssemblyState()
+                    .triangles()
+                .viewportState()
+                    .viewport()
+                        .origin(0, 0)
+                        .dimension(swapchain.width, swapchain.height)
+                        .minDepth(0)
+                        .maxDepth(1)
+                    .scissor()
+                        .offset(0, 0)
+                        .extent(swapchain.width, swapchain.height)
+                    .add()
+                .rasterizationState()
+                    .cullBackFace()
+                    .frontFaceCounterClockwise()
+                    .polygonModeFill()
+                .multisampleState()
+                    .rasterizationSamples(VK_SAMPLE_COUNT_1_BIT)
+                .depthStencilState()
+                    .enableDepthWrite()
+                    .enableDepthTest()
+                    .compareOpLess()
+                    .minDepthBounds(0)
+                    .maxDepthBounds(1)
+                .colorBlendState()
+                    .attachment()
+                    .add()
+                .layout()
+                    .addDescriptorSetLayout(m_cameraDescriptorSetLayout)
+                .dynamicRenderPass()
+                    .addColorAttachment(swapchain.format)
+                    .depthAttachment(VK_FORMAT_D16_UNORM)
+                    .viewMask(viewMask)
+                .subpass(0)
+                .name("object_render")
+            .build(m_modelPipeline.layout);
+    }
+
     void loadObject() {
         m_object = graphicsService().loadObject(m_descriptorPool, m_path);
     }
@@ -196,8 +245,13 @@ public:
     static vr::SessionConfig session() {
         return
             vr::SessionConfig()
-                .baseSpaceType()
-                    .localFloor()
+                .baseSpaceType().localFloor()
+                .addSpace(
+                    ReferenceSpaceSpecification()
+                        .name("object")
+                        .localFloor()
+                        .pose()
+                        .translate(0, 0, -1))
                 .addSwapChain(
                     vr::SwapchainSpecification()
                         .name("color")
@@ -214,10 +268,17 @@ public:
         return std::make_shared<ObjectTest>();
     }
 
+    void set(const std::vector<vr::SpaceLocation> &spaceLocations) final {
+        Cube cube{};
+        auto location = spaceLocations.front();
+        m_object.transforms[0] =  vr::toMatrix(location.pose);
+    }
+
     void render(const vr::FrameInfo &frameInfo, vr::Layers &layers) override {
 
         for(auto i = 0; i < frameInfo.viewInfo.views.size(); ++i) {
             const auto& view = frameInfo.viewInfo.views[i];
+            m_camera.cpu[i].model = glm::mat4{1};
             m_camera.cpu[i].view = glm::inverse(vr::toMatrix(view.pose));
             m_camera.cpu[i].projection = graphicsService().projection(view.fov, 0.1, 100);
         }
@@ -226,6 +287,7 @@ public:
            auto& frameBuffer = m_frameBuffers[frameInfo.imageId.imageIndex];
            vr::render(commandBuffer, frameBuffer, [&]{
                renderFloor(commandBuffer);
+               renderObject(commandBuffer);
            });
         });
 
@@ -248,6 +310,19 @@ public:
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_floor.pipeline.handle);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_floor.pipeline.layout, 0, 1, &m_cameraDescriptorSet, 0, nullptr);
         vkCmdDraw(commandBuffer, 4, 1, 0, 0);
+    }
+
+    void renderObject(VkCommandBuffer commandBuffer) {
+        VkDeviceSize offset = 0;
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_object.vertices._, &offset);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_modelPipeline.handle);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_modelPipeline.layout, 0, 1, &m_cameraDescriptorSet, 0, nullptr);
+        vkCmdBindIndexBuffer(commandBuffer, m_object.indexes, 0, VK_INDEX_TYPE_UINT32);
+
+        for(auto& instance : m_object.instances) {
+            const auto& mesh = m_object.meshes[instance.meshId];
+            vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1, mesh.firstIndex, mesh.vertexOffset, 0);
+        }
     }
 
 private:

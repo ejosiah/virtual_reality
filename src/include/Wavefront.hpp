@@ -57,5 +57,6 @@ namespace wavefront {
         vr::Buffer materials;
         VkDescriptorSetLayout descriptorSetLayout{};
         VkDescriptorSet descriptorSet{};
+        uint32_t indexCount{};
     };
 }

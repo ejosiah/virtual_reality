@@ -41,6 +41,7 @@ void main() {
         float sd = length(p.xz) - 10;
         sd = 1 - smoothstep(0, 10, sd);
         vec3 albedo =  GetColorFromPositionAndNormal(p, n);
+//        vec3 albedo =  mod(floor(p.x) + floor(p.z), 2) == 0 ? vec3(1) : vec3(0.01);
 
         fragColor.rgb = mix(vec3(0.2), albedo, sd);
     }
