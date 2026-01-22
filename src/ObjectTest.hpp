@@ -4,7 +4,6 @@
 #include "vr/graphics/vulkan/Rendering.hpp"
 #include "vr/SessionConfig.hpp"
 #include "geom/Geometry.hpp"
-#include "xform/xforms.hpp"
 #include "vr/Models.hpp"
 
 #include <vulkanizer/builders.hpp>
@@ -12,6 +11,8 @@
 struct Camera {
     glm::mat4 view{};
     glm::mat4 projection{};
+    glm::mat4 inverseView{};
+    glm::mat4 inverseProjection{};
     glm::vec3 position{};
 };
 
@@ -109,7 +110,7 @@ public:
         auto imageInfo = makeStruct<VkImageCreateInfo>();
         imageInfo.imageType = VK_IMAGE_TYPE_2D;
         imageInfo.format = VK_FORMAT_D16_UNORM;
-        imageInfo.extent = {static_cast<uint32_t>(swapchain.width), static_cast<uint32_t>(swapchain.height), 1};
+        imageInfo.extent = {(swapchain.width), (swapchain.height), 1};
         imageInfo.mipLevels = 1;
         imageInfo.arrayLayers = 2;
         imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -158,7 +159,7 @@ public:
                         .maxDepth(1)
                     .scissor()
                         .offset(0, 0)
-                        .extent(swapchain.width, swapchain.height)
+                        .extent(static_cast<int>(swapchain.width), static_cast<int>(swapchain.height))
                     .add()
                     .rasterizationState()
                         .cullNone()
@@ -206,7 +207,7 @@ public:
                         .maxDepth(1)
                     .scissor()
                         .offset(0, 0)
-                        .extent(swapchain.width, swapchain.height)
+                        .extent(static_cast<int>(swapchain.width), static_cast<int>(swapchain.height))
                     .add()
                 .rasterizationState()
                     .cullBackFace()
@@ -225,7 +226,8 @@ public:
                     .add()
                 .layout()
                     .addDescriptorSetLayout(m_cameraDescriptorSetLayout)
-                    .addPushConstantRange(VK_SHADER_STAGE_ALL_GRAPHICS, 0, sizeof(glm::mat4) * 2)
+                    .addDescriptorSetLayout(m_object.descriptorSetLayout)
+                    .addPushConstantRange(VK_SHADER_STAGE_ALL_GRAPHICS, 0, sizeof(instanceData))
                 .dynamicRenderPass()
                     .addColorAttachment(swapchain.format)
                     .depthAttachment(VK_FORMAT_D16_UNORM)
@@ -247,6 +249,10 @@ public:
         return
             vr::SessionConfig()
                 .baseSpaceType().localFloor()
+                .addSpace(
+                    ReferenceSpaceSpecification()
+                        .name("floor")
+                        .localFloor())
                 .addSpace(
                     ReferenceSpaceSpecification()
                         .name("object")
@@ -271,7 +277,7 @@ public:
     }
 
     void set(const std::vector<vr::SpaceLocation> &spaceLocations) final {
-        auto location = spaceLocations.front();
+        const auto& location = spaceLocations[1];
         m_object.transforms[0] =  vr::toMatrix(location.pose);
     }
 
@@ -279,15 +285,18 @@ public:
 
         for(auto i = 0; i < frameInfo.viewInfo.views.size(); ++i) {
             const auto& view = frameInfo.viewInfo.views[i];
-            m_camera.cpu[i].view = glm::inverse(vr::toMatrix(view.pose));
+            const auto pose = vr::toMatrix(view.pose);
+            m_camera.cpu[i].view = glm::inverse(pose);
             m_camera.cpu[i].projection = graphicsService().projection(view.fov, 0.1, 100);
+            m_camera.cpu[i].inverseView = pose;
+            m_camera.cpu[i].inverseProjection = glm::inverse(m_camera.cpu[i].projection);
             m_camera.cpu[i].position = vr::convert(view.pose).position;
         }
 
         graphicsService().scoped([&](auto commandBuffer){
            auto& frameBuffer = m_frameBuffers[frameInfo.imageId.imageIndex];
            vr::render(commandBuffer, frameBuffer, [&]{
-//               renderFloor(commandBuffer);
+               renderFloor(commandBuffer);
                renderObject(commandBuffer);
            });
         });
@@ -314,21 +323,21 @@ public:
     }
 
     void renderObject(VkCommandBuffer commandBuffer) {
-        static std::array<glm::mat4, 2> transforms;
 
         VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_object.vertices._, &offset);
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_modelPipeline.handle);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_modelPipeline.layout, 0, 1, &m_cameraDescriptorSet, 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_modelPipeline.layout, 1, 1, &m_object.descriptorSet, 0, nullptr);
         vkCmdBindIndexBuffer(commandBuffer, m_object.indexes, 0, VK_INDEX_TYPE_UINT32);
 
         for(auto& instance : m_object.instances) {
             const auto& mesh = m_object.meshes[instance.meshId];
 
-            transforms[0] = m_object.transforms[instance.transformId];
-            transforms[1] = glm::inverse(glm::transpose(transforms[0]));
+            instanceData.modelTransform = m_object.transforms[instance.transformId];
+            instanceData.normalTransform = glm::inverse(glm::transpose(instanceData.modelTransform ));
 
-            vkCmdPushConstants(commandBuffer, m_modelPipeline.layout, VK_SHADER_STAGE_ALL_GRAPHICS, 0, sizeof(glm::mat4) * 2, transforms.data());
+            vkCmdPushConstants(commandBuffer, m_modelPipeline.layout, VK_SHADER_STAGE_ALL_GRAPHICS, 0, sizeof(instanceData), &instanceData);
             vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1, mesh.firstIndex, mesh.vertexOffset, 0);
         }
     }
@@ -356,6 +365,12 @@ private:
         vr::Image image;
         vr::ImageView view;
     } m_depthBuffer;
+
+    struct {
+        glm::mat4 modelTransform{1};
+        glm::mat4 normalTransform{1};
+    } instanceData;
+
     vr::Link<Camera> m_camera{};
     uint32_t viewMask = 0b11;
 };

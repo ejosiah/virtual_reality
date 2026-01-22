@@ -22,10 +22,12 @@ layout(location = 1) out flat int view_id;
 void main() {
     view_id = gl_ViewIndex;
 
-    vec4 rd = inverse(camera[view_id].proj) * vec4(pos.xy, 1, 1);
-    rd /= rd.w;
-    rd = inverse(camera[view_id].view) * rd;
+    mat4 invProj = camera[view_id].inverseProj;
+    mat4 invView = camera[view_id].inverseView;
 
-    vs_out.direction = normalize(rd.xyz);
+    vec4 v = invProj * vec4(pos.xy, 1.0, 1.0);
+    vec3 rd_view = v.xyz / v.w;
+    vs_out.direction = (invView * vec4(rd_view, 0.0)).xyz;
+
     gl_Position = vec4(pos, 0, 1);
 }

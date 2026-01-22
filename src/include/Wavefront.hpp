@@ -35,7 +35,7 @@ namespace wavefront {
         uint32_t indexCount{};
         uint32_t firstVertex{};
         uint32_t vertexCount{};
-        uint32_t vertexOffset{};
+        int vertexOffset{};
     };
 
     struct Instance {

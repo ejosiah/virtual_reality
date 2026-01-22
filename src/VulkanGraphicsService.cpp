@@ -708,12 +708,14 @@ namespace vr {
         auto aColors = std::span<glm::vec3>{ reinterpret_cast<glm::vec3*>(attribs.colors.data()), attribs.colors.size()/3 };
 
         for(auto& shape : shapes) {
-            for(auto& index : shape.mesh.indices) {
+            for(auto i = 0; i < shape.mesh.indices.size(); ++i) {
+                auto& index = shape.mesh.indices[i];
                 auto& vertex = vertices[index.vertex_index];
                 vertex.position =  glm::vec4(aVertices[index.vertex_index], 1);
                 vertex.normal = aNormals.empty() ? glm::vec3{0} :  aNormals[index.normal_index];
-                vertex.color = aColors.empty() ? glm::vec4{0} :  glm::vec4{ aColors[index.vertex_index], 1};
                 vertex.uv = aTexCoords.empty() ? glm::vec2{0} :  aTexCoords[index.texcoord_index];
+                vertex.color = aColors.empty() ? glm::vec4{0} :  glm::vec4{ aColors[index.vertex_index], 1};
+                vertex.material = shape.mesh.material_ids.empty() ? -1 : shape.mesh.material_ids[i/3];
             }
         }
 

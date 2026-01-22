@@ -33,6 +33,7 @@ namespace geom {
         alignas(16) glm::vec3 tangent;
         alignas(16) glm::vec3 bitangent;
         glm::vec2 uv;
+        int material;
 
         static std::vector<VkVertexInputBindingDescription> bindingDisc(){
             return {
@@ -47,7 +48,8 @@ namespace geom {
                     {2, 0, VK_FORMAT_R32G32B32_SFLOAT, (uint32_t)offsetof(Vertex, tangent)},
                     {3, 0, VK_FORMAT_R32G32B32_SFLOAT, (uint32_t)offsetof(Vertex, bitangent)},
                     {4, 0, VK_FORMAT_R32G32B32A32_SFLOAT, (uint32_t)offsetof(Vertex, color)},
-                    {5, 0, VK_FORMAT_R32G32_SFLOAT, (uint32_t)offsetof(Vertex, uv)}
+                    {5, 0, VK_FORMAT_R32G32_SFLOAT, (uint32_t)offsetof(Vertex, uv)},
+                    {6, 0, VK_FORMAT_R8_SINT, (uint32_t)offsetof(Vertex, material)}
             };
         }
     };
@@ -118,7 +120,7 @@ namespace geom {
      * @return vertices defining a sphere
      */
     [[maybe_unused]]
-    Mesh sphere(int rows, int columns, float radius = 1.0f, glm::mat4 xform = glm::mat4{1}, const glm::vec4& color = GRAY, VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
+    Mesh sphere(int rows, int columns, float radius = 1.0f, glm::mat4 xform = glm::mat4{1}, const glm::vec4& color = GRAY, Topology topology = Topology::TRIANGLE_STRIPS);
 
     /**
      *
@@ -130,7 +132,7 @@ namespace geom {
      * @return vertices defining a hemisphere
      */
     [[maybe_unused]]
-    Mesh hemisphere(int rows, int columns, float radius = 1.0f, const glm::vec4& color = GRAY, VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
+    Mesh hemisphere(int rows, int columns, float radius = 1.0f, const glm::vec4& color = GRAY, Topology topology = Topology::TRIANGLE_STRIPS);
 
     /**
      * Generates Mesh for a cone
@@ -142,7 +144,7 @@ namespace geom {
      * @return vertices defining a cone
      */
     [[maybe_unused]]
-    Mesh cone(int rows, int columns, float radius = 1.0f, float height = 1.0f, const glm::vec4& color = GRAY, VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
+    Mesh cone(int rows, int columns, float radius = 1.0f, float height = 1.0f, const glm::vec4& color = GRAY, Topology topology = Topology::TRIANGLE_STRIPS);
 
     /**
      * @brief Generates Mesh for a cylinder
@@ -154,10 +156,10 @@ namespace geom {
      * @return vertices defining a cylinder
      */
     [[maybe_unused]]
-    Mesh cylinder(int rows, int columns, float radius = 1.0f, float height = 1.0f,  const glm::vec4& color = GRAY, VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
+    Mesh cylinder(int rows, int columns, float radius = 1.0f, float height = 1.0f,  const glm::vec4& color = GRAY, Topology topology = Topology::TRIANGLE_STRIPS);
 
     [[maybe_unused]]
-    Mesh plane(int rows, int columns, float width, float height, const glm::mat4& xform = glm::mat4(1), const glm::vec4& color = GRAY, VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
+    Mesh plane(int rows, int columns, float width, float height, const glm::mat4& xform = glm::mat4(1), const glm::vec4& color = GRAY, Topology topology = Topology::TRIANGLE_STRIPS);
 
     /**
      * @brief Generates Mesh for a torus
@@ -169,7 +171,7 @@ namespace geom {
      * @return vertices defining a torus
      */
     [[maybe_unused]]
-    Mesh torus(int rows, int columns, float innerRadius = 0.5f, float outerRadius = 1.0f, glm::mat4 xform = glm::mat4{1}, const glm::vec4& color = GRAY, VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
+    Mesh torus(int rows, int columns, float innerRadius = 0.5f, float outerRadius = 1.0f, glm::mat4 xform = glm::mat4{1}, const glm::vec4& color = GRAY, Topology topology = Topology::TRIANGLE_STRIPS);
 
     /**
      * Generates a parametric surface

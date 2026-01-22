@@ -1,5 +1,12 @@
 #version 460
 
+#include "common.glsl"
+
+layout(set = 1, binding = 0, scalar) readonly buffer MaterialSSBO {
+    Material materials[];
+};
+
+
 layout(location = 0) in struct {
     vec4 color;
     vec3 worldPos;
@@ -7,9 +14,11 @@ layout(location = 0) in struct {
     vec2 uv;
 } fs_in;
 
+layout(location = 4) flat in int matID;
+
 layout(location = 0) out vec4 fragColor;
 
 void main() {
-    vec3 color = abs(fs_in.normal);
+    vec3 color = matID == -1 ? fs_in.color.rgb : materials[matID].diffuse;
     fragColor = vec4(color, 1);
 }
