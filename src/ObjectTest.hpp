@@ -10,9 +10,9 @@
 #include <vulkanizer/builders.hpp>
 
 struct Camera {
-    glm::mat4 model{};
     glm::mat4 view{};
     glm::mat4 projection{};
+    glm::vec3 position{};
 };
 
 class ObjectTest : public vr::VulkanRenderer {
@@ -225,6 +225,7 @@ public:
                     .add()
                 .layout()
                     .addDescriptorSetLayout(m_cameraDescriptorSetLayout)
+                    .addPushConstantRange(VK_SHADER_STAGE_ALL_GRAPHICS, 0, sizeof(glm::mat4) * 2)
                 .dynamicRenderPass()
                     .addColorAttachment(swapchain.format)
                     .depthAttachment(VK_FORMAT_D16_UNORM)
@@ -249,9 +250,10 @@ public:
                 .addSpace(
                     ReferenceSpaceSpecification()
                         .name("object")
-                        .localFloor()
+                        .local()
                         .pose()
-                        .translate(0, 0, -1))
+                        .translate(0, 0, -1.5)
+                        .rotateY(90))
                 .addSwapChain(
                     vr::SwapchainSpecification()
                         .name("color")
@@ -269,7 +271,6 @@ public:
     }
 
     void set(const std::vector<vr::SpaceLocation> &spaceLocations) final {
-        Cube cube{};
         auto location = spaceLocations.front();
         m_object.transforms[0] =  vr::toMatrix(location.pose);
     }
@@ -278,15 +279,15 @@ public:
 
         for(auto i = 0; i < frameInfo.viewInfo.views.size(); ++i) {
             const auto& view = frameInfo.viewInfo.views[i];
-            m_camera.cpu[i].model = glm::mat4{1};
             m_camera.cpu[i].view = glm::inverse(vr::toMatrix(view.pose));
             m_camera.cpu[i].projection = graphicsService().projection(view.fov, 0.1, 100);
+            m_camera.cpu[i].position = vr::convert(view.pose).position;
         }
 
         graphicsService().scoped([&](auto commandBuffer){
            auto& frameBuffer = m_frameBuffers[frameInfo.imageId.imageIndex];
            vr::render(commandBuffer, frameBuffer, [&]{
-               renderFloor(commandBuffer);
+//               renderFloor(commandBuffer);
                renderObject(commandBuffer);
            });
         });
@@ -313,6 +314,8 @@ public:
     }
 
     void renderObject(VkCommandBuffer commandBuffer) {
+        static std::array<glm::mat4, 2> transforms;
+
         VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_object.vertices._, &offset);
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_modelPipeline.handle);
@@ -321,13 +324,18 @@ public:
 
         for(auto& instance : m_object.instances) {
             const auto& mesh = m_object.meshes[instance.meshId];
+
+            transforms[0] = m_object.transforms[instance.transformId];
+            transforms[1] = glm::inverse(glm::transpose(transforms[0]));
+
+            vkCmdPushConstants(commandBuffer, m_modelPipeline.layout, VK_SHADER_STAGE_ALL_GRAPHICS, 0, sizeof(glm::mat4) * 2, transforms.data());
             vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1, mesh.firstIndex, mesh.vertexOffset, 0);
         }
     }
 
 private:
 
-    std::filesystem::path m_path{R"(C:\Users\joebh\OneDrive\media\models\ChineseDragon.obj)"};
+    std::filesystem::path m_path{R"(C:\Users\joebh\OneDrive\media\models\bigship1.obj)"};
     wavefront::Object m_object;
     VkDescriptorPool m_descriptorPool{};
 

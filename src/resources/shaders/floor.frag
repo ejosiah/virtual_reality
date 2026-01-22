@@ -1,12 +1,7 @@
 #version 460
 
-struct Camera {
-    mat4 model;
-    mat4 view;
-    mat4 proj;
-};
-
-layout(set = 0, binding = 0) uniform CameraSSBO {
+#include "common.glsl"
+layout(set = 0, binding = 0, scalar) uniform CameraSSBO {
     Camera camera[2];
 };
 
@@ -24,10 +19,10 @@ vec3 GetColorFromPositionAndNormal( in vec3 worldPosition, in vec3 normal );
 void main() {
     mat4 view = camera[view_id].view;
     mat4 proj = camera[view_id].proj;
+    vec3 o = camera[view_id].position;
 
     gl_FragDepth = 1;
     fragColor = vec4(0.2, 0.2, 0.2, 1);
-    vec3 o = (inverse(view) * vec4(0, 0, 0, 1)).xyz;
 
     vec3 n = vec3(0, 1, 0);
     vec3 rd = normalize(fs_in.direction);

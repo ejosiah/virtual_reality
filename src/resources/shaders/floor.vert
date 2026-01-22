@@ -2,16 +2,13 @@
 
 #extension GL_EXT_multiview : enable
 
+#include "common.glsl"
+
 layout(location = 0) in vec2 pos;
 layout(location = 1) in vec2 uv;
 
-struct Camera {
-    mat4 model;
-    mat4 view;
-    mat4 proj;
-};
 
-layout(set = 0, binding = 0) uniform CameraSSBO {
+layout(set = 0, binding = 0, scalar) uniform CameraSSBO {
     Camera camera[2];
 };
 
