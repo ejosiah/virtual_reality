@@ -2,9 +2,14 @@
 
 #include "common.glsl"
 #include "functions.glsl"
+#include "light.glsl"
 
 layout(set = 0, binding = 0, scalar) uniform CameraSSBO {
     Camera camera[2];
+};
+
+layout(set = 1, binding = 0, scalar) uniform LightSSBO {
+    Light lights[2];
 };
 
 layout(location = 0) in struct {
@@ -35,6 +40,12 @@ void main() {
         float sd = length(p);
         sd = 1 - smoothstep(0, 10, sd);
         vec3 albedo =  GetColorFromPositionAndNormal(p, n);
+
+        Surface surface = defaultSurface(p, n);
+        surface.diffuse = albedo;
+        surface.ambient = albedo;
+
+        vec3 radiance = computeRadiance(lights[0], surface, o);
 //        vec3 albedo =  mod(floor(p.x) + floor(p.z), 2) == 0 ? vec3(1) : vec3(0.01);
 
         fragColor.rgb = mix(vec3(0.2), albedo, sd);

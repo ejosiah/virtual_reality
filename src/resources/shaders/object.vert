@@ -25,11 +25,12 @@ layout(push_constant) uniform Constants {
 layout(location = 0) out struct {
     vec4 color;
     vec3 worldPos;
+    vec3 viewPos;
     vec3 normal;
     vec2 uv;
 } vs_out;
 
-layout(location = 4) flat out int materialID;
+layout(location = 5) flat out int materialID;
 
 void main() {
     Camera cam = cameras[gl_ViewIndex];
@@ -37,10 +38,11 @@ void main() {
     vec4 worldPos = modelTransform * position;
 
     materialID = matId;
+    vs_out.worldPos = worldPos.xyz;
+    vs_out.viewPos = cam.position;
     vs_out.color = color;
     vs_out.normal = mat3(normalTransform) * normal;
     vs_out.uv = uv;
-    vs_out.worldPos = worldPos.xyz;
 
     gl_Position = cam.proj * cam.view * worldPos;
 }

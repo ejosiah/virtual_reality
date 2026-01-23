@@ -41,6 +41,10 @@ namespace vr {
         operator VkBuffer() const {
             return source._;
         }
+
+        T& operator[](int index) const {
+            return cpu[index];
+        }
     };
 
     struct CopyRequest {

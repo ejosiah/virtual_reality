@@ -358,6 +358,7 @@ namespace vr {
             vkDestroyDescriptorSetLayout(m_device, setLayout, nullptr);
         }
         for(auto pool : m_descriptorPools) {
+            vkResetDescriptorPool(m_device, pool, 0);
             vkDestroyDescriptorPool(m_device, pool, nullptr);
         }
 

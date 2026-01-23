@@ -16,12 +16,27 @@ struct Camera {
     glm::vec3 position{};
 };
 
+namespace LightType {
+    static constexpr int Directional = 0;
+    static constexpr int Point = 1;
+}
+
+struct Light {
+    glm::vec3 color{1};
+    glm::vec3 position{};
+    glm::vec3 direction{1};
+    float cutOff{};
+    float outerCutOff{};
+    int type{LightType::Directional};
+};
+
 class ObjectTest : public vr::VulkanRenderer {
 public:
 
     void init() final {
         setupLayers();
         initCamera();
+        initLights();
         createDepthBuffer();
         initFrameBuffer();
         createDescriptorPool();
@@ -40,6 +55,11 @@ public:
 
     void initCamera() {
         m_camera = graphicsService().link<Camera>(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 2);
+    }
+
+    void initLights() {
+        m_lights = graphicsService().link<Light>(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 2);
+        m_lights[0] = Light{ };
     }
 
     void createDescriptorPool() {
@@ -64,12 +84,22 @@ public:
                     .descriptorCount(1)
                     .shaderStages(VK_SHADER_STAGE_ALL_GRAPHICS)
                 .createLayout();
+
+        m_lightDescriptorSetLayout =
+            graphicsService().descriptorSetLayoutBuilder()
+                .name("lights_descriptor_set_layout")
+                .binding(0)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+                    .descriptorCount(1)
+                    .shaderStages(VK_SHADER_STAGE_ALL_GRAPHICS)
+                .createLayout();
     }
 
     void updateDescriptorSets() {
         m_cameraDescriptorSet = graphicsService().allocate(m_descriptorPool, m_cameraDescriptorSetLayout).front();
+        m_lightDescriptorSet = graphicsService().allocate(m_descriptorPool, m_lightDescriptorSetLayout).front();
 
-        std::vector<VkWriteDescriptorSet> writes(1, makeStruct<VkWriteDescriptorSet>());
+        std::vector writes(2, makeStruct<VkWriteDescriptorSet>());
 
         writes[0].dstSet = m_cameraDescriptorSet;
         writes[0].dstBinding = 0;
@@ -77,6 +107,13 @@ public:
         writes[0].descriptorCount = 1;
         VkDescriptorBufferInfo cameraInfo{ m_camera, 0, VK_WHOLE_SIZE};
         writes[0].pBufferInfo = &cameraInfo;
+
+        writes[1].dstSet = m_lightDescriptorSet;
+        writes[1].dstBinding = 0;
+        writes[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writes[1].descriptorCount = 1;
+        VkDescriptorBufferInfo lightInfo{ m_lights, 0, VK_WHOLE_SIZE};
+        writes[1].pBufferInfo = &lightInfo;
 
         graphicsService().update(writes);
     }
@@ -178,6 +215,7 @@ public:
                         .add()
                     .layout()
                         .addDescriptorSetLayout(m_cameraDescriptorSetLayout)
+                        .addDescriptorSetLayout(m_lightDescriptorSetLayout)
                     .dynamicRenderPass()
                         .addColorAttachment(swapchain.format)
                         .depthAttachment(VK_FORMAT_D16_UNORM)
@@ -227,6 +265,7 @@ public:
                 .layout()
                     .addDescriptorSetLayout(m_cameraDescriptorSetLayout)
                     .addDescriptorSetLayout(m_object.descriptorSetLayout)
+                    .addDescriptorSetLayout(m_lightDescriptorSetLayout)
                     .addPushConstantRange(VK_SHADER_STAGE_ALL_GRAPHICS, 0, sizeof(instanceData))
                 .dynamicRenderPass()
                     .addColorAttachment(swapchain.format)
@@ -258,7 +297,7 @@ public:
                         .name("object")
                         .localFloor()
                         .pose()
-                        .translate(0, 0, -5))
+                            .translate(0, 0, -5))
                 .addSwapChain(
                     vr::SwapchainSpecification()
                         .name("color")
@@ -288,11 +327,11 @@ public:
         for(auto i = 0; i < frameInfo.viewInfo.views.size(); ++i) {
             const auto& view = frameInfo.viewInfo.views[i];
             const auto pose = vr::toMatrix(view.pose);
-            m_camera.cpu[i].view = glm::inverse(pose);
-            m_camera.cpu[i].projection = graphicsService().projection(view.fov, 0.1, 100);
-            m_camera.cpu[i].inverseView = pose;
-            m_camera.cpu[i].inverseProjection = glm::inverse(m_camera.cpu[i].projection);
-            m_camera.cpu[i].position = vr::convert(view.pose).position;
+            m_camera[i].view = glm::inverse(pose);
+            m_camera[i].projection = graphicsService().projection(view.fov, 0.1, 100);
+            m_camera[i].inverseView = pose;
+            m_camera[i].inverseProjection = glm::inverse(m_camera[i].projection);
+            m_camera[i].position = vr::convert(view.pose).position;
         }
 
         graphicsService().scoped([&](auto commandBuffer){
@@ -321,6 +360,7 @@ public:
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_floor.vertices._, &offset);
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_floor.pipeline.handle);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_floor.pipeline.layout, 0, 1, &m_cameraDescriptorSet, 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_floor.pipeline.layout, 1, 1, &m_lightDescriptorSet, 0, nullptr);
         vkCmdDraw(commandBuffer, 4, 1, 0, 0);
     }
 
@@ -331,6 +371,7 @@ public:
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_modelPipeline.handle);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_modelPipeline.layout, 0, 1, &m_cameraDescriptorSet, 0, nullptr);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_modelPipeline.layout, 1, 1, &m_object.descriptorSet, 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_modelPipeline.layout, 2, 1, &m_lightDescriptorSet, 0, nullptr);
         vkCmdBindIndexBuffer(commandBuffer, m_object.indexes, 0, VK_INDEX_TYPE_UINT32);
 
         for(auto& instance : m_object.instances) {
@@ -355,6 +396,9 @@ private:
     VkDescriptorSetLayout m_cameraDescriptorSetLayout{};
     VkDescriptorSet m_cameraDescriptorSet{};
 
+    VkDescriptorSetLayout m_lightDescriptorSetLayout{};
+    VkDescriptorSet m_lightDescriptorSet{};
+
     vr::Pipeline m_modelPipeline;
 
     struct {
@@ -376,5 +420,6 @@ private:
     } instanceData;
 
     vr::Link<Camera> m_camera{};
+    vr::Link<Light> m_lights;
     uint32_t viewMask = 0b11;
 };
