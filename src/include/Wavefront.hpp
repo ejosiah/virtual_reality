@@ -50,6 +50,7 @@ namespace wavefront {
         std::vector<Instance> instances;
         std::vector<glm::mat4> transforms;
         std::vector<vr::Texture> textures;
+        std::vector<std::string> materialNames;
         vr::Sampler sampler;
         std::vector<Mesh> meshes;
         vr::Buffer vertices;

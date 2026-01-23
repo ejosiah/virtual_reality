@@ -495,3 +495,13 @@ template<>
 inline VkPhysicalDeviceVulkan13Features makeStruct<VkPhysicalDeviceVulkan13Features>() {
     return { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
 }
+
+template<>
+inline VkImageMemoryBarrier2 makeStruct<VkImageMemoryBarrier2>() {
+    return { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
+}
+
+template<>
+inline VkCopyBufferToImageInfo2 makeStruct<VkCopyBufferToImageInfo2>() {
+    return { VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2 };
+}

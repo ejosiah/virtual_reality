@@ -72,6 +72,8 @@ namespace vr {
         auto devFeatures12 = makeStruct<VkPhysicalDeviceVulkan12Features>();
         devFeatures12.pNext = &devFeatures11;
         devFeatures12.scalarBlockLayout = VK_TRUE;
+        devFeatures12.runtimeDescriptorArray = VK_TRUE;
+        devFeatures12.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
 
         auto devFeatures13 = makeStruct<VkPhysicalDeviceVulkan13Features>();
         devFeatures13.pNext = &devFeatures12;
@@ -695,40 +697,46 @@ namespace vr {
         std::vector<tinyobj::material_t> tMaterials;
         std::string error, warn;
 
-        if(!tinyobj::LoadObj(&attribs, &shapes, &tMaterials, &warn, &error, path.string().c_str(), path.parent_path().string().c_str())) {
+        auto parentDir = path.parent_path();
+        if(!tinyobj::LoadObj(&attribs, &shapes, &tMaterials, &warn, &error, path.string().c_str(), parentDir.string().c_str())) {
             THROW(error)
         }
 
         const auto numVertices = attribs.vertices.size()/3;
-        std::vector<geom::Vertex> vertices(numVertices);
+        std::vector<geom::Vertex> vertices;
+        vertices.reserve(numVertices);
 
-        auto aVertices = std::span<glm::vec3>{ reinterpret_cast<glm::vec3*>(attribs.vertices.data()), numVertices };
-        auto aNormals = std::span<glm::vec3>{ reinterpret_cast<glm::vec3*>(attribs.normals.data()), attribs.normals.size()/3 };
-        auto aTexCoords = std::span<glm::vec2>{ reinterpret_cast<glm::vec2*>(attribs.texcoords.data()), attribs.texcoords.size()/2 };
-        auto aColors = std::span<glm::vec3>{ reinterpret_cast<glm::vec3*>(attribs.colors.data()), attribs.colors.size()/3 };
-
-        for(auto& shape : shapes) {
-            for(auto i = 0; i < shape.mesh.indices.size(); ++i) {
-                auto& index = shape.mesh.indices[i];
-                auto& vertex = vertices[index.vertex_index];
-                vertex.position =  glm::vec4(aVertices[index.vertex_index], 1);
-                vertex.normal = aNormals.empty() ? glm::vec3{0} :  aNormals[index.normal_index];
-                vertex.uv = aTexCoords.empty() ? glm::vec2{0} :  aTexCoords[index.texcoord_index];
-                vertex.color = aColors.empty() ? glm::vec4{0} :  glm::vec4{ aColors[index.vertex_index], 1};
-                vertex.material = shape.mesh.material_ids.empty() ? -1 : shape.mesh.material_ids[i/3];
-            }
-        }
-
+        auto aVertices = std::span{ reinterpret_cast<glm::vec3*>(attribs.vertices.data()), numVertices };
+        auto aNormals = std::span{ reinterpret_cast<glm::vec3*>(attribs.normals.data()), attribs.normals.size()/3 };
+        auto aTexCoords = std::span{ reinterpret_cast<glm::vec2*>(attribs.texcoords.data()), attribs.texcoords.size()/2 };
+        auto aColors = std::span{ reinterpret_cast<glm::vec3*>(attribs.colors.data()), attribs.colors.size()/3 };
         wavefront::Object object{};
 
         std::vector<uint32_t> indexes;
         for(auto& shape : shapes) {
             auto& mesh = object.meshes.emplace_back();
-            mesh.firstIndex = indexes.size();
+            mesh.firstIndex = static_cast<int>(indexes.size());
+            mesh.vertexOffset = static_cast<int>(vertices.size());
+
+            auto itr = std::find(shape.mesh.material_ids.begin(), shape.mesh.material_ids.end(), 23);
+            if (itr != shape.mesh.material_ids.end()) {
+                auto meshIndex = std::distance(shapes.data(), &shape);
+                spdlog::info("Picture mesh index: {}", meshIndex);
+            }
+
+            for (auto i = 0; i < shape.mesh.indices.size(); ++i) {
+                auto& index = shape.mesh.indices[i];
+                auto& vertex = vertices.emplace_back();
+                vertex.position =  glm::vec4(aVertices[index.vertex_index], 1);
+                vertex.normal = aNormals.empty() ? glm::vec3{0} :  aNormals[index.normal_index];
+                vertex.uv = aTexCoords.empty() ? glm::vec2{0} :  aTexCoords[index.texcoord_index];
+                vertex.color = aColors.empty() ? glm::vec4{0} :  glm::vec4{ aColors[index.vertex_index], 1};
+                vertex.material = shape.mesh.material_ids.empty() ? -1 : shape.mesh.material_ids[i/3];
+                indexes.push_back(i);
+            }
+
+            mesh.name = shape.name;
             mesh.indexCount = shape.mesh.indices.size();
-            mesh.vertexOffset = std::distance(vertices.data(), &vertices[mesh.firstIndex]);
-            auto mIndexes = map_range(shape.mesh.indices, [](auto index){ return static_cast<uint32_t>(index.vertex_index); });
-            indexes.insert(indexes.end(), mIndexes.begin(), mIndexes.end());
         }
         object.indexCount = indexes.size();
 
@@ -786,6 +794,8 @@ namespace vr {
                 }
                 material.normalTexId = texturePaths.at(tMat.bump_texname);
             }
+
+            object.materialNames.push_back(tMat.name);
         }
 
         object.textures.resize(numTextures);
@@ -795,20 +805,19 @@ namespace vr {
 
         for(const auto& [uri, _] : texturePaths) {
             int w, h, c;
-            stbi_info(uri.c_str(), &w, &h, &c);
-            bufferSize += w * h * STBI_rgb_alpha;
+            stbi_info((parentDir.string() + "/" + uri).c_str(), &w, &h, &c);
+            bufferSize =  std::max(0, w * h * STBI_rgb_alpha);
         }
         bufferSize = std::max(std::max(BYTE_SIZE(indexes), bufferSize), std::max(BYTE_SIZE(materials), BYTE_SIZE(vertices)));
         auto staging = createStagingBuffer(bufferSize);
 
         auto mapping = map(staging);
         auto dst = reinterpret_cast<unsigned char*>(mapping._);
-        std::vector<VkCopyBufferToImageInfo2> copyInfos;
-        std::vector<VkBufferImageCopy2> regions;
-        auto bufferOffset = 0;
+
+        stbi_set_flip_vertically_on_load(1);
         for(const auto& [uri, index] : texturePaths) {
             int w, h, c;
-            auto cpuImage = stbi_load(uri.c_str(), &w, &h, &c, STBI_rgb_alpha);
+            auto cpuImage = stbi_load((parentDir.string() + "/" + uri).c_str(), &w, &h, &c, STBI_rgb_alpha);
 
             if(!cpuImage) THROW(std::format("unable to load {}", uri));
 
@@ -834,7 +843,7 @@ namespace vr {
             imageViewInfo.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
             texture.imageView = createImageView(imageViewInfo);
 
-            auto& barrier = barriers.emplace_back();
+            auto barrier = makeStruct<VkImageMemoryBarrier2>();
             barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
             barrier.srcStageMask = VK_PIPELINE_STAGE_NONE;
             barrier.srcAccessMask = VK_ACCESS_NONE;
@@ -845,52 +854,46 @@ namespace vr {
             barrier.image = texture.image;
             barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
-            auto& region = regions.emplace_back();
+            auto region = makeStruct<VkBufferImageCopy2>();
             region.sType = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2;
-            region.bufferOffset = bufferOffset;
+            region.bufferOffset = 0;
             region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
             region.imageOffset = {0, 0, 0};
             region.imageExtent = texture.image.info.extent;
 
             const auto imageSize = w * h * STBI_rgb_alpha;
-            std::memcpy(dst + bufferOffset, cpuImage, imageSize);
+            std::memcpy(dst, cpuImage, imageSize);
 
-            auto& copyInfo = copyInfos.emplace_back();
+            auto copyInfo = makeStruct<VkCopyBufferToImageInfo2>();
             copyInfo.srcBuffer = staging;
             copyInfo.dstImage = texture.image;
             copyInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            copyInfo.pRegions = &region;
             copyInfo.regionCount = 1;
 
-            bufferOffset += imageSize;
+            auto dependencyInfo = makeStruct<VkDependencyInfo>();
+            dependencyInfo.imageMemoryBarrierCount = 1;
+            dependencyInfo.pImageMemoryBarriers = &barrier;
+
+            scoped([&](auto commandBuffer) {
+                 vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
+                 vkCmdCopyBufferToImage2(commandBuffer, &copyInfo);
+
+                barrier.srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+                barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+                barrier.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+                barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+                barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+                vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
+
+                texture.image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            });
+
             stbi_image_free(cpuImage);
         }
-
-        scoped([&](auto commandBuffer){
-           auto dependencyInfo = makeStruct<VkDependencyInfo>();
-           dependencyInfo.imageMemoryBarrierCount = numTextures;
-           dependencyInfo.pImageMemoryBarriers = barriers.data();
-
-            vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
-
-            for(auto i = 0; i < numTextures; ++i) {
-                auto& copyInfo = copyInfos[i];
-                copyInfo.pRegions = &regions[i];
-                vkCmdCopyBufferToImage2(commandBuffer, &copyInfo);
-
-                barriers[i].srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
-                barriers[i].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-                barriers[i].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-                barriers[i].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-                barriers[i].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-                barriers[i].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-                object.textures[i].image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            }
-
-            vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
-
-        });
-
+        stbi_set_flip_vertically_on_load(0);
         
         for(auto i = 0; i < shapes.size(); ++i) {
             auto& instance = object.instances.emplace_back();
@@ -956,11 +959,10 @@ namespace vr {
             VkDescriptorBufferInfo materialInfo{object.materials, 0, VK_WHOLE_SIZE};
             writes[0].pBufferInfo = &materialInfo;
 
-            if(numWrites > 1) {
-                auto imageInfos = map_range(object.textures, [](auto &texture) {
-                    return VkDescriptorImageInfo{VK_NULL_HANDLE, texture.imageView,
-                                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-                });
+            auto imageInfos = map_range(object.textures, [](auto &texture) {
+                return VkDescriptorImageInfo{VK_NULL_HANDLE, texture.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+            });
+            if(!imageInfos.empty()) {
                 writes[1].dstSet = object.descriptorSet;
                 writes[1].dstBinding = 1;
                 writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;

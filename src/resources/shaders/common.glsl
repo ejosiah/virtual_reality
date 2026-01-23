@@ -28,4 +28,21 @@ struct Material {
     int normalTexId;
 };
 
+struct Surface {
+    vec3 normal;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+    vec3 transmittance;
+    vec3 emission;
+    vec3 shininess;
+    float ior;
+    float opacity;
+};
+
+
+Surface defaultSurface() {
+    return Surface(vec3(0, 1, 0), vec3(0.6), vec3(0.6), vec3(1.0), vec3(0.0), vec3(0.0), vec3(100), 1.0, 1.0);
+}
+
 #endif // COMMONG_GLSL

@@ -32,7 +32,7 @@ void main() {
         vec4 depth = proj * view * vec4(p, 1);
         depth /= depth.w;
         gl_FragDepth = depth.z;
-        float sd = length(p.xz) - 10;
+        float sd = length(p);
         sd = 1 - smoothstep(0, 10, sd);
         vec3 albedo =  GetColorFromPositionAndNormal(p, n);
 //        vec3 albedo =  mod(floor(p.x) + floor(p.z), 2) == 0 ? vec3(1) : vec3(0.01);

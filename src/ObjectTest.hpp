@@ -256,10 +256,9 @@ public:
                 .addSpace(
                     ReferenceSpaceSpecification()
                         .name("object")
-                        .local()
+                        .localFloor()
                         .pose()
-                        .translate(0, 0, -1.5)
-                        .rotateY(90))
+                        .translate(0, 0, -5))
                 .addSwapChain(
                     vr::SwapchainSpecification()
                         .name("color")
@@ -278,7 +277,10 @@ public:
 
     void set(const std::vector<vr::SpaceLocation> &spaceLocations) final {
         const auto& location = spaceLocations[1];
-        m_object.transforms[0] =  vr::toMatrix(location.pose);
+        auto pose =  vr::toMatrix(location.pose);
+        for (auto& transform : m_object.transforms) {
+            transform = pose;
+        }
     }
 
     void render(const vr::FrameInfo &frameInfo, vr::Layers &layers) override {
@@ -344,7 +346,9 @@ public:
 
 private:
 
-    std::filesystem::path m_path{R"(C:\Users\joebh\OneDrive\media\models\bigship1.obj)"};
+    // std::filesystem::path m_path{R"(C:\Users\joebh\OneDrive\media\models\bigship1.obj)"};
+    // std::filesystem::path m_path{R"(C:\Users\joebh\OneDrive\media\models\CornellBox\CornellBox-Original.obj)"};
+    std::filesystem::path m_path{R"(C:\Users\joebh\OneDrive\media\models\leaving_room\living_room.obj)"};
     wavefront::Object m_object;
     VkDescriptorPool m_descriptorPool{};
 
