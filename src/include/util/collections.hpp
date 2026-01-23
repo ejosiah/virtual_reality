@@ -28,3 +28,12 @@ std::vector<T> unique(std::vector<T> v)
     v.erase(std::unique(v.begin(), v.end()), v.end());
     return v;
 }
+
+template<typename T, typename Predicate>
+std::optional<T> find(const std::vector<T>& v, Predicate pred) {
+    auto itr = std::find_if(v.begin(), v.end(), pred);
+    if (itr != v.end()) {
+        return *itr;
+    }
+    return std::nullopt;
+}

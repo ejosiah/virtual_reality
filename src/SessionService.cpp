@@ -294,7 +294,18 @@ namespace vr {
                     static auto waitInfo = makeStruct<XrSwapchainImageWaitInfo>();
                     waitInfo.timeout = XR_INFINITE_DURATION;
 
+                    std::optional<ImageId> depthImage;
                     if (XR_UNQUALIFIED_SUCCESS(xrWaitSwapchainImage(swapchain.handle, &waitInfo))) {
+
+                        if (!swapchain.spec._depth.empty()) {
+                            auto mayBeDepth = find(swapchains, [&](auto& sc){ return sc.spec._name == swapchain.spec._depth; });
+                            if (mayBeDepth.has_value()) {
+                                xrAcquireSwapchainImage(mayBeDepth->handle, nullptr, &imageIndex);
+                                if (XR_UNQUALIFIED_SUCCESS(xrWaitSwapchainImage(mayBeDepth->handle, &waitInfo))) {
+                                    depthImage = {mayBeDepth->handle, imageIndex};
+                                }
+                            }
+                        }
 
                         // Get view info
                         auto viewState = makeStruct<XrViewState>();
@@ -319,7 +330,7 @@ namespace vr {
                         }
 
                         frameLoop({imageId, {viewState, std::move(views)}, m_sessionService.m_baseSpace,
-                                   m_frameState.predictedDisplayTime, m_frameState.predictedDisplayPeriod}, layers);
+                                   m_frameState.predictedDisplayTime, m_frameState.predictedDisplayPeriod, depthImage}, layers);
 
 #ifdef USE_MIRROR_WINDOW
                         // FIXME don't mirror here, wait for all layers to be composed and then use them to compose the mirror

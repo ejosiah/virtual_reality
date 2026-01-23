@@ -48,9 +48,20 @@ public:
     }
 
     void setupLayers() {
-        m_layerViews = std::vector<XrCompositionLayerProjectionView>(2, makeStruct<XrCompositionLayerProjectionView>());
+        auto m_depthView = makeStruct<XrCompositionLayerDepthInfoKHR>();
+        m_depthView.minDepth = 0.0f;
+        m_depthView.maxDepth = 1.0f;
+        m_depthView.nearZ = 0.1f;
+        m_depthView.farZ = 100.0f;
+
+        m_depthViews = std::vector(2, m_depthView);
+
+        m_layerViews = std::vector(2, makeStruct<XrCompositionLayerProjectionView>());
+        m_layerViews[0].next = &m_depthViews[0];
+        m_layerViews[1].next = &m_depthViews[1];
+
         m_layer.views = m_layerViews.data();
-        m_layer.viewCount = 2;
+        m_layer.viewCount = m_layerViews.size();
     }
 
     void initCamera() {
@@ -136,7 +147,7 @@ public:
             auto imageView = graphicsService().createImageView(createViewInfo);
             frameBuffer.colorAttachments.emplace_back(imageView, colorSC.format, glm::vec4{0.2, 0.2, 0.2, 1.0});
 
-            frameBuffer.depthAttachment = { m_depthBuffer.view, VK_FORMAT_D16_UNORM };
+            frameBuffer.depthAttachment = { m_depthBuffer.views[i], VK_FORMAT_D16_UNORM };
             frameBuffer.renderArea = { colorSC.width, colorSC.height };
             frameBuffer.numLayers = 2;
             frameBuffer.viewMask = viewMask;
@@ -144,28 +155,20 @@ public:
     }
 
     void createDepthBuffer() {
-        auto swapchain = graphicsService().getSwapChain("color");
-        auto imageInfo = makeStruct<VkImageCreateInfo>();
-        imageInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageInfo.format = VK_FORMAT_D16_UNORM;
-        imageInfo.extent = {(swapchain.width), (swapchain.height), 1};
-        imageInfo.mipLevels = 1;
-        imageInfo.arrayLayers = 2;
-        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-        imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-        m_depthBuffer.image = graphicsService().createImage(imageInfo);
+        const auto depthSC = graphicsService().getSwapChain("depth");
+        const auto depthCount = depthSC.images.size();
 
         VkImageViewCreateInfo viewInfo = makeStruct<VkImageViewCreateInfo>();
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-        viewInfo.image = m_depthBuffer.image;
-        viewInfo.format = m_depthBuffer.image.info.format;
+        viewInfo.format = depthSC.format;
         viewInfo.subresourceRange = { VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 2 };
 
-        m_depthBuffer.view = graphicsService().createImageView(viewInfo);
+        m_depthBuffer.views.resize(depthCount);
+        for (auto i = 0; i < depthCount; ++i) {
+            const auto& image = depthSC.images[i];
+            viewInfo.image = image.image;
+            m_depthBuffer.views[i] = graphicsService().createImageView(viewInfo);
+        }
     }
 
     void initFloor() {
@@ -307,7 +310,15 @@ public:
                         .width(2064)
                         .height(2096)
                         .arraySize(2)
-                        .depthBuffer("depth"));
+                        .depthBuffer("depth"))
+                .addSwapChain(
+                    vr::SwapchainSpecification()
+                        .name("depth")
+                        .usage().depthStencilAttachment()
+                        .format(VK_FORMAT_D16_UNORM)
+                        .width(2064)
+                        .height(2096)
+                        .arraySize(2));
 
     }
 
@@ -351,6 +362,11 @@ public:
             m_layerViews[i].subImage.swapchain = swapchain;
             m_layerViews[i].subImage.imageRect = {{0, 0}, static_cast<int32_t>(swapchain.width), static_cast<int32_t>(swapchain.height)};
             m_layerViews[i].subImage.imageArrayIndex = i;
+
+            if (frameInfo.depthImageId.has_value()) {
+                m_depthViews[i].subImage.swapchain = frameInfo.depthImageId->swapChain;
+                m_depthViews[i].subImage.imageArrayIndex = i;
+            }
         }
         m_layer.space = frameInfo.space;
         layers.push_back({ &m_layer });
@@ -413,9 +429,9 @@ private:
     std::vector<vr::RenderInfo> m_frameBuffers;
     XrCompositionLayerProjection m_layer{ XR_TYPE_COMPOSITION_LAYER_PROJECTION};
     std::vector<XrCompositionLayerProjectionView> m_layerViews;
+    std::vector<XrCompositionLayerDepthInfoKHR> m_depthViews;
     struct {
-        vr::Image image;
-        vr::ImageView view;
+        std::vector<vr::ImageView> views;
     } m_depthBuffer;
 
     struct {
