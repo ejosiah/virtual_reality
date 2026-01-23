@@ -65,6 +65,7 @@ namespace vr {
                             session.stop();
                             break;
                         case XR_TYPE_EVENT_DATA_INTERACTION_PROFILE_CHANGED:
+                        case XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING:
                             break;
                         default: {
                             char buffer[XR_MAX_STRUCTURE_NAME_SIZE];
