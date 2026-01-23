@@ -17,7 +17,7 @@ namespace wavefront {
         glm::vec3 specular;
         glm::vec3 transmittance;
         glm::vec3 emission;
-        glm::vec3 shininess;
+        float shininess;
         float ior;
         float opacity;
 

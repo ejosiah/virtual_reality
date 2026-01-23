@@ -60,15 +60,16 @@ public:
     void initLights() {
         m_lights = graphicsService().link<Light>(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 2);
         m_lights[0] = Light{ };
+
     }
 
     void createDescriptorPool() {
         std::array<VkDescriptorPoolSize, 2> poolSizes{{
-              {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10u},
-              {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10u}
+              {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 100u},
+              {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 100u}
         }};
         auto createInfo = makeStruct<VkDescriptorPoolCreateInfo>();
-        createInfo.maxSets = 10u;
+        createInfo.maxSets = 100u;
         createInfo.poolSizeCount = poolSizes.size();
         createInfo.pPoolSizes = poolSizes.data();
 
@@ -319,6 +320,7 @@ public:
         auto pose =  vr::toMatrix(location.pose);
         for (auto& transform : m_object.transforms) {
             transform = pose;
+            // transform = glm::scale(glm::mat4{1}, glm::vec3(0.005)) * pose;
         }
     }
 
@@ -390,6 +392,8 @@ private:
     // std::filesystem::path m_path{R"(C:\Users\joebh\OneDrive\media\models\bigship1.obj)"};
     // std::filesystem::path m_path{R"(C:\Users\joebh\OneDrive\media\models\CornellBox\CornellBox-Original.obj)"};
     std::filesystem::path m_path{R"(C:\Users\joebh\OneDrive\media\models\leaving_room\living_room.obj)"};
+    // std::filesystem::path m_path{R"(C:\Users\joebh\OneDrive\media\models\Office Interior Reception 2\office.obj)"};
+    // std::filesystem::path m_path{R"(C:\Users\joebh\OneDrive\media\models\Sports_car\highpolyGHS.obj)"};
     wavefront::Object m_object;
     VkDescriptorPool m_descriptorPool{};
 

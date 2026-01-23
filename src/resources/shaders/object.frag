@@ -46,7 +46,7 @@ Surface getSurface() {
     if(matID < 0) return surface;
 
     Material material = materials[matID];
-    surface.ambient = material.diffuse;
+    surface.ambient = material.ambient;
     surface.diffuse = material.diffuse;
     surface.specular = material.specular;
     surface.transmittance = material.transmittance;
@@ -71,7 +71,7 @@ Surface getSurface() {
     }
 
     if(material.shininessTexId != -1) {
-        surface.shininess = texture(textures[nonuniformEXT(material.shininessTexId)], uv).rgb;
+        surface.shininess = texture(textures[nonuniformEXT(material.shininessTexId)], uv).r;
     }
 
     // TODO normals

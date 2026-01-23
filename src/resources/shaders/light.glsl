@@ -33,8 +33,8 @@ vec3 computeRadiance(Light light, Surface surface, vec3 viewPosition) {
     float NdotL = max(dot(N, L), 0.0);
 
     vec3 H = normalize(V + L);
-    float specPow = max(surface.shininess.x, 0.0);
-    float specTerm = (NdotL > 0.0) ? pow(max(dot(V, H), 0.0), specPow) : 0.0;
+    float specPow = max(surface.shininess, 0.0);
+    float specTerm = (NdotL > 0.0) ? pow(max(dot(N, H), 0.0), specPow) : 0.0;
 
     float spot = 1.0;
     if (light.type == LIGHT_TYPE_POSITION && light.outerCutOff > 0.0) {
@@ -57,12 +57,12 @@ vec3 computeRadiance(Light light, Surface surface, vec3 viewPosition) {
 
     float attenuation = (light.type == LIGHT_TYPE_POSITION) ? (1.0 / dist2) : 1.0;
 
-    vec3 ambient  = surface.ambient;
+    vec3 ambient  = dot(surface.ambient, surface.ambient) != 0 ? surface.ambient : surface.diffuse;
     vec3 diffuse  = surface.diffuse  * NdotL;
     vec3 specular = surface.specular * specTerm;
 
     vec3 radiance = (diffuse + specular) * light.color * attenuation * spot;
-    radiance += ambient * 0.01 + surface.emission;
+    radiance += ambient * 0.1 + surface.emission;
 
     return radiance;
 }

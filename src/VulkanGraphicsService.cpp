@@ -729,9 +729,9 @@ namespace vr {
                 auto& index = shape.mesh.indices[i];
                 auto& vertex = vertices.emplace_back();
                 vertex.position =  glm::vec4(aVertices[index.vertex_index], 1);
-                vertex.normal = aNormals.empty() ? glm::vec3{0} :  aNormals[index.normal_index];
-                vertex.uv = aTexCoords.empty() ? glm::vec2{0} :  aTexCoords[index.texcoord_index];
-                vertex.color = aColors.empty() ? glm::vec4{0} :  glm::vec4{ aColors[index.vertex_index], 1};
+                vertex.normal = aNormals.empty()  || index.normal_index < 0  ? glm::vec3{0} :  aNormals[index.normal_index];
+                vertex.uv = aTexCoords.empty()  || index.texcoord_index < 0  ? glm::vec2{0} :  aTexCoords[index.texcoord_index];
+                vertex.color = aColors.empty()  ? glm::vec4{0} :  glm::vec4{ aColors[index.vertex_index], 1};
                 vertex.material = shape.mesh.material_ids.empty() ? -1 : shape.mesh.material_ids[i/3];
                 indexes.push_back(i);
             }
@@ -751,6 +751,7 @@ namespace vr {
             material.specular = { tMat.specular[0], tMat.specular[1], tMat.specular[2] };
             material.transmittance = { tMat.transmittance[0], tMat.transmittance[1], tMat.transmittance[2] };
             material.emission = { tMat.emission[0], tMat.emission[1], tMat.emission[2] };
+            material.shininess = tMat.shininess;
             material.ior = tMat.ior;
             material.opacity = tMat.dissolve;
 
@@ -804,7 +805,7 @@ namespace vr {
 
         auto bufferSize = 0ULL;
 
-        for(const auto& [uri, _] : texturePaths) {
+        for(const auto& [uri, index] : texturePaths) {
             int w, h, c;
             stbi_info((parentDir.string() + "/" + uri).c_str(), &w, &h, &c);
             bufferSize =  std::max(0, w * h * STBI_rgb_alpha);
@@ -816,12 +817,16 @@ namespace vr {
         auto dst = reinterpret_cast<unsigned char*>(mapping._);
 
         stbi_set_flip_vertically_on_load(1);
+        std::vector<int> unloaded;
         for(const auto& [uri, index] : texturePaths) {
             int w, h, c;
             auto cpuImage = stbi_load((parentDir.string() + "/" + uri).c_str(), &w, &h, &c, STBI_rgb_alpha);
 
-            if(!cpuImage) THROW(std::format("unable to load {}", uri));
-
+            if(!cpuImage) {
+                spdlog::warn("unable to load {}");
+                unloaded.push_back(index);
+                continue;
+            }
             auto imageInfo = makeStruct<VkImageCreateInfo>();
             imageInfo.imageType = VK_IMAGE_TYPE_2D;
             imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
@@ -895,6 +900,26 @@ namespace vr {
             stbi_image_free(cpuImage);
         }
         stbi_set_flip_vertically_on_load(0);
+
+        for (auto missingTexture : unloaded) {
+            for (auto& material : materials) {
+                if (material.ambientTexId == missingTexture) {
+                    material.ambientTexId = -1;
+                }
+                if (material.diffuseTexId == missingTexture) {
+                    material.diffuseTexId = -1;
+                }
+                if (material.specularTexId == missingTexture) {
+                    material.specularTexId = -1;
+                }
+                if (material.shininessTexId == missingTexture) {
+                    material.shininessTexId = -1;
+                }
+                if (material.normalTexId == missingTexture) {
+                    material.normalTexId = -1;
+                }
+            }
+        }
         
         for(auto i = 0; i < shapes.size(); ++i) {
             auto& instance = object.instances.emplace_back();

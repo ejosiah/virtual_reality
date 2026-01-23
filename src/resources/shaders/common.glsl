@@ -17,7 +17,7 @@ struct Material {
     vec3 specular;
     vec3 transmittance;
     vec3 emission;
-    vec3 shininess;
+    float shininess;
     float ior;
     float opacity;
 
@@ -36,14 +36,14 @@ struct Surface {
     vec3 specular;
     vec3 transmittance;
     vec3 emission;
-    vec3 shininess;
+    float shininess;
     float ior;
     float opacity;
 };
 
 
 Surface defaultSurface(vec3 point, vec3 normal) {
-    return Surface(point, normal, vec3(0.6), vec3(0.6), vec3(1.0), vec3(0.0), vec3(0.0), vec3(100), 1.0, 1.0);
+    return Surface(point, normal, vec3(0.6), vec3(0.6), vec3(1.0), vec3(0.0), vec3(0.0), 50, 1.0, 1.0);
 }
 
 
