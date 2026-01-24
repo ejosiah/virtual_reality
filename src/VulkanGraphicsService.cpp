@@ -732,7 +732,7 @@ namespace vr {
                 vertex.normal = aNormals.empty()  || index.normal_index < 0  ? glm::vec3{0} :  aNormals[index.normal_index];
                 vertex.uv = aTexCoords.empty()  || index.texcoord_index < 0  ? glm::vec2{0} :  aTexCoords[index.texcoord_index];
                 vertex.color = aColors.empty()  ? glm::vec4{0} :  glm::vec4{ aColors[index.vertex_index], 1};
-                vertex.material = shape.mesh.material_ids.empty() ? -1 : shape.mesh.material_ids[i/3];
+                vertex.material = shape.mesh.material_ids.empty() ? 0 : shape.mesh.material_ids[i/3];
                 indexes.push_back(i);
             }
 
@@ -799,13 +799,16 @@ namespace vr {
 
             object.materialNames.push_back(tMat.name);
         }
+        if (materials.empty()) {
+            materials.emplace_back();
+        }
 
         object.textures.resize(numTextures);
         std::vector<VkImageMemoryBarrier2> barriers;
 
         auto bufferSize = 0ULL;
 
-        for(const auto& [uri, index] : texturePaths) {
+        for(const auto &uri: texturePaths | std::views::keys) {
             int w, h, c;
             stbi_info((parentDir.string() + "/" + uri).c_str(), &w, &h, &c);
             bufferSize =  std::max(0, w * h * STBI_rgb_alpha);
@@ -956,48 +959,45 @@ namespace vr {
         samplerInfo.maxLod = 1; // TODO generate mipmaps;
 
         object.sampler = createSampler(samplerInfo);
-        auto samplers = map_range(std::vector<Sampler>(numTextures, object.sampler), [](auto& s){return s.handle; });
+        auto samplers = map_range(std::vector(numTextures, object.sampler), [](auto& s){return s.handle; });
 
+        object.descriptorSetLayout =
+            descriptorSetLayoutBuilder()
+                .binding(0)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                    .descriptorCount(materials.size())
+                    .shaderStages(VK_SHADER_STAGE_ALL_GRAPHICS)
+                .binding(1)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                    .descriptorCount(std::max(1, numTextures))
+                    .shaderStages(VK_SHADER_STAGE_ALL_GRAPHICS)
+                    .immutableSamplers(samplers.data())
+            .createLayout();
 
-        if(!materials.empty()) {
-            object.descriptorSetLayout =
-                descriptorSetLayoutBuilder()
-                    .binding(0)
-                        .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
-                        .descriptorCount(materials.size())
-                        .shaderStages(VK_SHADER_STAGE_ALL_GRAPHICS)
-                    .binding(1)
-                        .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                        .descriptorCount(std::max(1, numTextures))
-                        .shaderStages(VK_SHADER_STAGE_ALL_GRAPHICS)
-                        .immutableSamplers(samplers.data())
-                .createLayout();
+        object.descriptorSet = allocate(descriptorPool, object.descriptorSetLayout, 1).front();
 
-            object.descriptorSet = allocate(descriptorPool, object.descriptorSetLayout, 1).front();
+        const auto numWrites = object.textures.empty() ? 1 : 2;
+        std::vector writes(numWrites, makeStruct<VkWriteDescriptorSet>());
 
-            const auto numWrites = object.textures.empty() ? 1 : 2;
-            std::vector<VkWriteDescriptorSet> writes(numWrites, makeStruct<VkWriteDescriptorSet>());
+        writes[0].dstSet = object.descriptorSet;
+        writes[0].dstBinding = 0;
+        writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[0].descriptorCount = 1;
+        VkDescriptorBufferInfo materialInfo{object.materials, 0, VK_WHOLE_SIZE};
+        writes[0].pBufferInfo = &materialInfo;
 
-            writes[0].dstSet = object.descriptorSet;
-            writes[0].dstBinding = 0;
-            writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-            writes[0].descriptorCount = 1;
-            VkDescriptorBufferInfo materialInfo{object.materials, 0, VK_WHOLE_SIZE};
-            writes[0].pBufferInfo = &materialInfo;
-
-            auto imageInfos = map_range(object.textures, [](auto &texture) {
-                return VkDescriptorImageInfo{VK_NULL_HANDLE, texture.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-            });
-            if(!imageInfos.empty()) {
-                writes[1].dstSet = object.descriptorSet;
-                writes[1].dstBinding = 1;
-                writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                writes[1].descriptorCount = imageInfos.size();
-                writes[1].pImageInfo = imageInfos.data();
-            }
+        auto imageInfos = map_range(object.textures, [](auto &texture) {
+            return VkDescriptorImageInfo{VK_NULL_HANDLE, texture.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+        });
+        if(!imageInfos.empty()) {
+            writes[1].dstSet = object.descriptorSet;
+            writes[1].dstBinding = 1;
+            writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            writes[1].descriptorCount = imageInfos.size();
+            writes[1].pImageInfo = imageInfos.data();
+        }
 
             update(writes);
-        }
 
         return object;
 

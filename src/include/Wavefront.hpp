@@ -12,14 +12,14 @@
 namespace wavefront {
 
     struct Material {
-        glm::vec3 ambient;
-        glm::vec3 diffuse;
-        glm::vec3 specular;
-        glm::vec3 transmittance;
-        glm::vec3 emission;
-        float shininess;
-        float ior;
-        float opacity;
+        glm::vec3 ambient{0.6};
+        glm::vec3 diffuse{0.6};
+        glm::vec3 specular{1};
+        glm::vec3 transmittance{0};
+        glm::vec3 emission{0};
+        float shininess{50};
+        float ior{1};
+        float opacity{1};
 
         int ambientTexId{-1};
         int diffuseTexId{-1};
