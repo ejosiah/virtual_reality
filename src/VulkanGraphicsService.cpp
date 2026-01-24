@@ -929,7 +929,7 @@ namespace vr {
             instance.opacity = instance.materialId >= 0 ? materials[instance.materialId].opacity : 1;
         }
 
-        object.transforms = std::vector<glm::mat4>(object.instances.size(), glm::mat4{1});
+        object.transforms = std::vector(object.instances.size(), glm::mat4{1});
 
         std::memcpy(mapping, vertices.data(), BYTE_SIZE(vertices));
         object.vertices = createDeviceLocalBuffer(BYTE_SIZE(vertices), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
@@ -1009,17 +1009,16 @@ namespace vr {
         return properties.limits;
     }
 
-    VkSampleCountFlagBits VulkanGraphicsService::getClosestSupportedSampleCount(VkSampleCountFlagBits samples) const {
+    uint32_t VulkanGraphicsService::getClosestSupportedSampleCount(uint32_t samples) const {
         if (samples == VK_SAMPLE_COUNT_1_BIT) return samples;
 
         auto supportedSampleCounts = limits().framebufferColorSampleCounts | limits().framebufferDepthSampleCounts;
 
-        uint32_t supportedSamples = samples;
-        while ((supportedSamples & supportedSampleCounts) == 0) {
-            supportedSamples >>= 1;
+        while ((samples & supportedSampleCounts) == 0) {
+            samples >>= 1;
         }
 
-        return static_cast<VkSampleCountFlagBits>(supportedSamples);
+        return samples;
     }
 
 #endif

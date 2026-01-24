@@ -24,6 +24,8 @@ namespace vr {
         [[nodiscard]]
         virtual const XrBaseInStructure& graphicsBinding() const = 0;
 
+        virtual uint32_t getClosestSupportedSampleCount(uint32_t samples) const = 0;
+
         [[nodiscard]] const Context& context() const {
             return m_context;
         }

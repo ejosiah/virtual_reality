@@ -205,7 +205,7 @@ namespace vr {
 
         VkPhysicalDeviceLimits limits() const;
 
-        VkSampleCountFlagBits getClosestSupportedSampleCount(VkSampleCountFlagBits samples) const;
+        uint32_t getClosestSupportedSampleCount(uint32_t samples) const override;
 
 #ifdef USE_MIRROR_WINDOW
         void initMirrorWindow() final;
