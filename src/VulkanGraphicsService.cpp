@@ -734,10 +734,16 @@ namespace vr {
                 vertex.color = aColors.empty()  ? glm::vec4{0} :  glm::vec4{ aColors[index.vertex_index], 1};
                 vertex.material = shape.mesh.material_ids.empty() ? 0 : shape.mesh.material_ids[i/3];
                 indexes.push_back(i);
+
+                mesh.bounds.min = glm::min(mesh.bounds.min, vertex.position.xyz());
+                mesh.bounds.max = glm::max(mesh.bounds.max, vertex.position.xyz());
             }
 
             mesh.name = shape.name;
             mesh.indexCount = shape.mesh.indices.size();
+
+            object.bounds.min = glm::min(object.bounds.min, mesh.bounds.min);
+            object.bounds.max = glm::max(object.bounds.max, mesh.bounds.max);
         }
         object.indexCount = indexes.size();
 

@@ -329,10 +329,6 @@ public:
                 .baseSpaceType().localFloor()
                 .addSpace(
                     ReferenceSpaceSpecification()
-                        .name("floor")
-                        .localFloor())
-                .addSpace(
-                    ReferenceSpaceSpecification()
                         .name("object")
                         .localFloor()
                         .pose()
@@ -363,11 +359,11 @@ public:
     }
 
     void set(const std::vector<vr::SpaceLocation> &spaceLocations) final {
-        const auto& location = spaceLocations[1];
-        auto pose =  vr::toMatrix(location.pose);
+        auto location = find(spaceLocations, [](const auto& sloc){ return sloc.name == "object"; });
+        auto pose =  vr::toMatrix(location->pose);
+
         for (auto& transform : m_object.transforms) {
             transform = pose;
-            // transform = glm::scale(glm::mat4{1}, glm::vec3(0.005)) * pose;
         }
     }
 

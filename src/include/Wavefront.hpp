@@ -8,8 +8,14 @@
 #include <string>
 #include <vector>
 #include <cinttypes>
+#include <numbers>
 
 namespace wavefront {
+
+    struct Bounds {
+        glm::vec3 min{std::numeric_limits<float>::max()};
+        glm::vec3 max{std::numeric_limits<float>::lowest()};
+    };
 
     struct Material {
         glm::vec3 ambient{0.6};
@@ -31,6 +37,7 @@ namespace wavefront {
 
     struct Mesh {
         std::string name;
+        Bounds bounds;
         uint32_t firstIndex{};
         uint32_t indexCount{};
         uint32_t firstVertex{};
@@ -51,6 +58,7 @@ namespace wavefront {
         std::vector<glm::mat4> transforms;
         std::vector<vr::Texture> textures;
         std::vector<std::string> materialNames;
+        Bounds bounds;
         vr::Sampler sampler;
         std::vector<Mesh> meshes;
         vr::Buffer vertices;
