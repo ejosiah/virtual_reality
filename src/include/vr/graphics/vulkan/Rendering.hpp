@@ -22,6 +22,7 @@ namespace vr {
         ImageView imageView;
         VkFormat format;
         glm::vec4 clearValue{0, 0, 0, 1};
+        std::optional<ImageView> resolve;
         bool clear{true};
     };
 

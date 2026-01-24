@@ -1003,6 +1003,25 @@ namespace vr {
 
     }
 
+    VkPhysicalDeviceLimits VulkanGraphicsService::limits() const {
+        VkPhysicalDeviceProperties properties{};
+        vkGetPhysicalDeviceProperties(m_physicalDevice, &properties);
+        return properties.limits;
+    }
+
+    VkSampleCountFlagBits VulkanGraphicsService::getClosestSupportedSampleCount(VkSampleCountFlagBits samples) const {
+        if (samples == VK_SAMPLE_COUNT_1_BIT) return samples;
+
+        auto supportedSampleCounts = limits().framebufferColorSampleCounts | limits().framebufferDepthSampleCounts;
+
+        uint32_t supportedSamples = samples;
+        while ((supportedSamples & supportedSampleCounts) == 0) {
+            supportedSamples >>= 1;
+        }
+
+        return static_cast<VkSampleCountFlagBits>(supportedSamples);
+    }
+
 #endif
 }
 

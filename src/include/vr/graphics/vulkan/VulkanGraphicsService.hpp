@@ -63,17 +63,15 @@ namespace vr {
     public:
         explicit VulkanGraphicsService(const Context &context);
 
-        ~VulkanGraphicsService() final = default;
-
-        void setSwapChains(std::vector<SwapChain> swapchains)  final;
+        void setSwapChains(std::vector<SwapChain> swapchains);
 
         [[nodiscard]]
         const VulkanContext& vulkanContext() const;
 
-        void init() final;
+        void init();
 
         [[nodiscard]]
-        const XrBaseInStructure& graphicsBinding() const final;
+        const XrBaseInStructure& graphicsBinding() const;
 
         Buffer createStagingBuffer(VkDeviceSize size);
 
@@ -93,9 +91,9 @@ namespace vr {
 
         const XrVulkanSwapChain& getSwapChain(XrSwapchain swapchain);
 
-        void shutdown() final;
+        void shutdown();
 
-        glm::mat4 projection(const XrFovf &fov, float zNear, float zFar) final;
+        glm::mat4 projection(const XrFovf &fov, float zNear, float zFar);
 
         [[maybe_unused]]
         VkCommandBuffer commandBuffer(uint32_t imageIndex);
@@ -204,6 +202,10 @@ namespace vr {
         void submitToGraphicsQueue(const VkSubmitInfo &submitInfo);
 
         wavefront::Object loadObject(VkDescriptorPool descriptorPool, const std::filesystem::path& path);
+
+        VkPhysicalDeviceLimits limits() const;
+
+        VkSampleCountFlagBits getClosestSupportedSampleCount(VkSampleCountFlagBits samples) const;
 
 #ifdef USE_MIRROR_WINDOW
         void initMirrorWindow() final;

@@ -38,6 +38,7 @@ public:
         initCamera();
         initLights();
         createDepthBuffer();
+        initMsaa();
         initFrameBuffer();
         createDescriptorPool();
         loadObject();
@@ -130,6 +131,39 @@ public:
         graphicsService().update(writes);
     }
 
+    void initMsaa() {
+        auto samples = graphicsService().getClosestSupportedSampleCount(VK_SAMPLE_COUNT_64_BIT);
+        spdlog::info("{} max supported MSAA samples", samples);
+
+        auto swapchain = graphicsService().getSwapChain("color");
+        auto imageInfo = makeStruct<VkImageCreateInfo>();
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.format = swapchain.format;
+        imageInfo.extent = {(swapchain.width), (swapchain.height), 1};
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 2;
+        imageInfo.samples = m_msaa.samples;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+        VkImageViewCreateInfo createViewInfo = makeStruct<VkImageViewCreateInfo>();
+        createViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+        createViewInfo.format = swapchain.format;
+        createViewInfo.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 2 };
+
+        for (auto i = 0; i < swapchain.images.size(); i++) {
+            auto image = graphicsService().createImage(imageInfo);
+            m_msaa.images.push_back(image);
+
+            createViewInfo.image = image;
+            auto imageView = graphicsService().createImageView(createViewInfo);
+            m_msaa.views.push_back(imageView);
+
+        }
+    }
+
     void initFrameBuffer() {
         auto colorSC = graphicsService().getSwapChain("color");
         auto numImages = colorSC.images.size();
@@ -145,7 +179,8 @@ public:
             createViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 
             auto imageView = graphicsService().createImageView(createViewInfo);
-            frameBuffer.colorAttachments.emplace_back(imageView, colorSC.format, glm::vec4{0.2, 0.2, 0.2, 1.0});
+            frameBuffer.colorAttachments.emplace_back(m_msaa.views[i], colorSC.format,
+                                    glm::vec4{0.2, 0.2, 0.2, 1.0}, imageView);
 
             frameBuffer.depthAttachment = { m_depthBuffer.views[i], VK_FORMAT_D16_UNORM };
             frameBuffer.renderArea = { colorSC.width, colorSC.height };
@@ -207,7 +242,7 @@ public:
                         .frontFaceCounterClockwise()
                         .polygonModeFill()
                     .multisampleState()
-                        .rasterizationSamples(VK_SAMPLE_COUNT_1_BIT)
+                        .rasterizationSamples(VK_SAMPLE_COUNT_8_BIT)
                     .depthStencilState()
                         .enableDepthWrite()
                         .enableDepthTest()
@@ -256,7 +291,7 @@ public:
                     .frontFaceCounterClockwise()
                     .polygonModeFill()
                 .multisampleState()
-                    .rasterizationSamples(VK_SAMPLE_COUNT_1_BIT)
+                    .rasterizationSamples(VK_SAMPLE_COUNT_8_BIT)
                 .depthStencilState()
                     .enableDepthWrite()
                     .enableDepthTest()
@@ -316,6 +351,7 @@ public:
                         .name("depth")
                         .usage().depthStencilAttachment()
                         .format(VK_FORMAT_D16_UNORM)
+                        .sampleCount(VK_SAMPLE_COUNT_8_BIT)
                         .width(2064)
                         .height(2096)
                         .arraySize(2));
@@ -433,6 +469,12 @@ private:
     struct {
         std::vector<vr::ImageView> views;
     } m_depthBuffer;
+
+    struct {
+        std::vector<vr::Image> images;
+        std::vector<vr::ImageView> views;
+        VkSampleCountFlagBits samples{VK_SAMPLE_COUNT_8_BIT};
+    } m_msaa;
 
     struct {
         glm::mat4 modelTransform{1};

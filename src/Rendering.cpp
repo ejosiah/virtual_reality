@@ -8,14 +8,19 @@ void vr::render(VkCommandBuffer commandBuffer, const vr::RenderInfo &renderInfo,
     info.viewMask = renderInfo.viewMask;
 
     std::vector<VkRenderingAttachmentInfo> colorAttachments;
-    for(const auto& [imageView, format, cv, clear] : renderInfo.colorAttachments) {
+    for(const auto& [imageView, format, cv, resolve, clear] : renderInfo.colorAttachments) {
         VkRenderingAttachmentInfo attachmentInfo{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
         attachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        attachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
         attachmentInfo.loadOp = clear ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
         attachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
         attachmentInfo.clearValue.color = {cv.r, cv.g, cv.b, cv.a};
         attachmentInfo.imageView = imageView.handle;
+
+        if (resolve.has_value()) {
+            attachmentInfo.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
+            attachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            attachmentInfo.resolveImageView = resolve->handle;
+        }
 
         colorAttachments.push_back(attachmentInfo);
     }
