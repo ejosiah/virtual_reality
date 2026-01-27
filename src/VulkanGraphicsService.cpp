@@ -93,6 +93,7 @@ namespace vr {
         createInfo.vulkanCreateInfo = &createDeviceInfo;
         VkPhysicalDeviceFeatures features{};
         features.shaderStorageImageMultisample = VK_TRUE;
+        features.multiDrawIndirect = VK_TRUE;
         createDeviceInfo.pEnabledFeatures = &features;
 
         VkResult result;
@@ -692,7 +693,7 @@ namespace vr {
         return m_window;
     }
 
-    wavefront::Object VulkanGraphicsService::loadObject(VkDescriptorPool descriptorPool, const std::filesystem::path &path) {
+    wavefront::Scene VulkanGraphicsService::loadObject(VkDescriptorPool descriptorPool, const std::filesystem::path &path) {
         tinyobj::attrib_t attribs;
         std::vector<tinyobj::shape_t> shapes;
         std::vector<tinyobj::material_t> tMaterials;
@@ -711,7 +712,7 @@ namespace vr {
         auto aNormals = std::span{ reinterpret_cast<glm::vec3*>(attribs.normals.data()), attribs.normals.size()/3 };
         auto aTexCoords = std::span{ reinterpret_cast<glm::vec2*>(attribs.texcoords.data()), attribs.texcoords.size()/2 };
         auto aColors = std::span{ reinterpret_cast<glm::vec3*>(attribs.colors.data()), attribs.colors.size()/3 };
-        wavefront::Object object{};
+        wavefront::Scene object{};
 
         std::vector<uint32_t> indexes;
         for(auto& shape : shapes) {
@@ -929,7 +930,7 @@ namespace vr {
                 }
             }
         }
-        
+
         for(auto i = 0; i < shapes.size(); ++i) {
             auto& instance = object.instances.emplace_back();
             instance.meshId = i;
@@ -938,7 +939,16 @@ namespace vr {
             instance.opacity = instance.materialId >= 0 ? materials[instance.materialId].opacity : 1;
         }
 
-        object.transforms = std::vector(object.instances.size(), glm::mat4{1});
+        auto drawCommands = map_range(object.meshes, [](const auto& m) {
+           return VkDrawIndexedIndirectCommand {
+                .indexCount = m.indexCount,
+                .instanceCount = 1,
+                .firstIndex = m.firstIndex,
+                .vertexOffset = m.vertexOffset,
+                .firstInstance = 0
+           };
+        });
+        object.drawCommandCount = drawCommands.size();
 
         std::memcpy(mapping, vertices.data(), BYTE_SIZE(vertices));
         object.vertices = createDeviceLocalBuffer(BYTE_SIZE(vertices), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
@@ -951,6 +961,10 @@ namespace vr {
         std::memcpy(mapping, materials.data(), BYTE_SIZE(materials));
         object.materials = createDeviceLocalBuffer(std::max(BYTE_SIZE(materials), sizeof(int)), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
         copy(staging, object.materials, BYTE_SIZE(materials));
+
+        std::memcpy(mapping, drawCommands.data(), BYTE_SIZE(drawCommands));
+        object.drawCommands = createDeviceLocalBuffer(std::max(BYTE_SIZE(drawCommands), sizeof(int)), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+        copy(staging, object.drawCommands, BYTE_SIZE(drawCommands));
 
         auto samplerInfo = makeStruct<VkSamplerCreateInfo>();
         samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -1003,7 +1017,9 @@ namespace vr {
             writes[1].pImageInfo = imageInfos.data();
         }
 
-            update(writes);
+        update(writes);
+
+        spdlog::info("{} meshes loaded", object.meshes.size());
 
         return object;
 

@@ -53,17 +53,20 @@ namespace wavefront {
     };
 
 
-    struct Object {
+    struct Scene {
         std::vector<Instance> instances;
-        std::vector<glm::mat4> transforms;
+        glm::mat4 transform{1};
         std::vector<vr::Texture> textures;
         std::vector<std::string> materialNames;
+        std::vector<std::string> meshNames;
         Bounds bounds;
         vr::Sampler sampler;
         std::vector<Mesh> meshes;
         vr::Buffer vertices;
         vr::Buffer indexes;
         vr::Buffer materials;
+        vr::Buffer drawCommands;
+        uint32_t drawCommandCount{};
         VkDescriptorSetLayout descriptorSetLayout{};
         VkDescriptorSet descriptorSet{};
         uint32_t indexCount{};

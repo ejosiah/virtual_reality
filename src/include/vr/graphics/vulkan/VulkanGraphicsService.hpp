@@ -201,7 +201,7 @@ namespace vr {
 
         void submitToGraphicsQueue(const VkSubmitInfo &submitInfo);
 
-        wavefront::Object loadObject(VkDescriptorPool descriptorPool, const std::filesystem::path& path);
+        wavefront::Scene loadObject(VkDescriptorPool descriptorPool, const std::filesystem::path& path);
 
         VkPhysicalDeviceLimits limits() const;
 

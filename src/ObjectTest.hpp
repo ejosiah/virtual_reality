@@ -303,7 +303,7 @@ public:
                     .add()
                 .layout()
                     .addDescriptorSetLayout(m_cameraDescriptorSetLayout)
-                    .addDescriptorSetLayout(m_object.descriptorSetLayout)
+                    .addDescriptorSetLayout(m_scene.descriptorSetLayout)
                     .addDescriptorSetLayout(m_lightDescriptorSetLayout)
                     .addPushConstantRange(VK_SHADER_STAGE_ALL_GRAPHICS, 0, sizeof(instanceData))
                 .dynamicRenderPass()
@@ -316,7 +316,7 @@ public:
     }
 
     void loadObject() {
-        m_object = graphicsService().loadObject(m_descriptorPool, m_path);
+        m_scene = graphicsService().loadObject(m_descriptorPool, m_path);
     }
 
     vr::cstring name() override {
@@ -361,10 +361,7 @@ public:
     void set(const std::vector<vr::SpaceLocation> &spaceLocations) final {
         auto location = find(spaceLocations, [](const auto& sloc){ return sloc.name == "object"; });
         auto pose =  vr::toMatrix(location->pose);
-
-        for (auto& transform : m_object.transforms) {
-            transform = pose;
-        }
+        m_scene.transform = pose;
     }
 
     void render(const vr::FrameInfo &frameInfo, vr::Layers &layers) override {
@@ -417,22 +414,18 @@ public:
     void renderObject(VkCommandBuffer commandBuffer) {
 
         VkDeviceSize offset = 0;
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_object.vertices._, &offset);
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_scene.vertices._, &offset);
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_modelPipeline.handle);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_modelPipeline.layout, 0, 1, &m_cameraDescriptorSet, 0, nullptr);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_modelPipeline.layout, 1, 1, &m_object.descriptorSet, 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_modelPipeline.layout, 1, 1, &m_scene.descriptorSet, 0, nullptr);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_modelPipeline.layout, 2, 1, &m_lightDescriptorSet, 0, nullptr);
-        vkCmdBindIndexBuffer(commandBuffer, m_object.indexes, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindIndexBuffer(commandBuffer, m_scene.indexes, 0, VK_INDEX_TYPE_UINT32);
 
-        for(auto& instance : m_object.instances) {
-            const auto& mesh = m_object.meshes[instance.meshId];
+        instanceData.modelTransform = m_scene.transform;
+        instanceData.normalTransform = glm::inverse(glm::transpose(instanceData.modelTransform ));
 
-            instanceData.modelTransform = m_object.transforms[instance.transformId];
-            instanceData.normalTransform = glm::inverse(glm::transpose(instanceData.modelTransform ));
-
-            vkCmdPushConstants(commandBuffer, m_modelPipeline.layout, VK_SHADER_STAGE_ALL_GRAPHICS, 0, sizeof(instanceData), &instanceData);
-            vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1, mesh.firstIndex, mesh.vertexOffset, 0);
-        }
+        vkCmdPushConstants(commandBuffer, m_modelPipeline.layout, VK_SHADER_STAGE_ALL_GRAPHICS, 0, sizeof(instanceData), &instanceData);
+        vkCmdDrawIndexedIndirect(commandBuffer, m_scene.drawCommands, 0, m_scene.drawCommandCount, sizeof(VkDrawIndexedIndirectCommand));
     }
 
 private:
@@ -442,7 +435,7 @@ private:
     std::filesystem::path m_path{R"(C:\Users\joebh\OneDrive\media\models\leaving_room\living_room.obj)"};
     // std::filesystem::path m_path{R"(C:\Users\joebh\OneDrive\media\models\Office Interior Reception 2\office.obj)"};
     // std::filesystem::path m_path{R"(C:\Users\joebh\OneDrive\media\models\Sports_car\highpolyGHS.obj)"};
-    wavefront::Object m_object;
+    wavefront::Scene m_scene;
     VkDescriptorPool m_descriptorPool{};
 
     VkDescriptorSetLayout m_cameraDescriptorSetLayout{};
