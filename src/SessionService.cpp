@@ -45,7 +45,7 @@ namespace vr {
         createSession();
         createReferenceSpaces();
         createSwapChain();
-        createMainViewSpace();
+        createBaseReferenceSpace();
         setupActions();
         initRenderer();
 #ifdef USE_MIRROR_WINDOW
@@ -75,29 +75,32 @@ namespace vr {
             CHECK_XR(xrCreateReferenceSpace(m_session, &createInfo, &space));
 
             m_spaces.insert(std::make_pair(spec._name, space));
+            spdlog::info("created reference space[{}]: {}",(uint64_t)space,  spec._name);
         }
     }
     
-    void SessionService::createMainViewSpace() {
+    void SessionService::createBaseReferenceSpace() {
         auto createInfo = makeStruct<XrReferenceSpaceCreateInfo>();
         createInfo.referenceSpaceType = m_config._baseSpaceType;
         createInfo.poseInReferenceSpace.position = {0, 0, 0};
         createInfo.poseInReferenceSpace.orientation = {0, 0, 0, 1};
         LOG_ERROR(m_ctx.instance, xrCreateReferenceSpace(m_session, &createInfo, &m_baseSpace))
+        spdlog::info("created base reference: {}",(uint64_t)m_baseSpace);
     }
 
     void SessionService::initRenderer() {
         m_renderer->init();
     }
 
-    void SessionService::handle(const XrEventDataBuffer &event) {
-        if(event.type != XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED) {
-            throw cpptrace::runtime_error{"Event is not a session state changed event"};
-        }
-        const auto stateChanged = reinterpret_cast<const XrEventDataSessionStateChanged&>(event);
-        transitionTo(stateChanged.state);
+    void SessionService::handle(const XrEventDataSessionStateChanged &event) {
+        transitionTo(event.state);
         m_states[m_currentState]->init();
     }
+
+    void SessionService::handle(const XrEventDataReferenceSpaceChangePending &event) {
+        spdlog::info("reference space changed, type: {}", toString(event.referenceSpaceType));
+    }
+
     
     void SessionService::processFrame() {
         m_states[m_currentState]->processFrame();
@@ -285,6 +288,9 @@ namespace vr {
             if(m_frameState.shouldRender){
                 beginFrame();
 
+                updateSpaceLocations();
+                auto viewInfo = getViewInfo();
+
                 for(const auto& swapchain : swapchains) {
                     if(!swapchain.spec._render) continue;
 
@@ -294,8 +300,8 @@ namespace vr {
                     static auto waitInfo = makeStruct<XrSwapchainImageWaitInfo>();
                     waitInfo.timeout = XR_INFINITE_DURATION;
 
-                    std::optional<ImageId> depthImage;
                     if (XR_UNQUALIFIED_SUCCESS(xrWaitSwapchainImage(swapchain.handle, &waitInfo))) {
+                        std::optional<ImageId> depthImage;
 
                         if (!swapchain.spec._depth.empty()) {
                             auto mayBeDepth = find(swapchains, [&](auto& sc){ return sc.spec._name == swapchain.spec._depth; });
@@ -307,29 +313,7 @@ namespace vr {
                             }
                         }
 
-                        // Get view info
-                        auto viewState = makeStruct<XrViewState>();
-                        auto viewLocateInfo = makeStruct<XrViewLocateInfo>();
-                        viewLocateInfo.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
-                        viewLocateInfo.displayTime = m_frameState.predictedDisplayTime;
-                        viewLocateInfo.space = m_sessionService.m_baseSpace;
-
-                        auto views = xr::locateViews(session, viewLocateInfo, viewState, xrInstance);
-
-                        ViewInfo viewInfo{viewState, views};
-
-                        // get space locations
-                        std::vector<SpaceLocation> spaceLocations;
-                        spaceLocations.reserve(m_sessionService.m_spaces.size());
-                        for (const auto &[name, space]: m_sessionService.m_spaces) {
-                            auto location = xr::locateSpace(space, m_sessionService.m_baseSpace, m_frameState.predictedDisplayTime);
-                            spaceLocations.push_back({name, convert(location.pose)});
-                        }
-                        if (!spaceLocations.empty()) {
-                            m_sessionService.m_renderer->set(spaceLocations);
-                        }
-
-                        frameLoop({imageId, {viewState, std::move(views)}, m_sessionService.m_baseSpace,
+                        frameLoop({imageId, viewInfo, m_sessionService.m_baseSpace,
                                    m_frameState.predictedDisplayTime, m_frameState.predictedDisplayPeriod, depthImage}, layers);
 
 #ifdef USE_MIRROR_WINDOW
@@ -365,6 +349,30 @@ namespace vr {
 
     void SessionStateRunning::endFrame() {
         m_sessionService.m_renderer->endFrame();
+    }
+
+    ViewInfo SessionStateRunning::getViewInfo() const {
+        auto viewState = makeStruct<XrViewState>();
+        auto viewLocateInfo = makeStruct<XrViewLocateInfo>();
+        viewLocateInfo.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
+        viewLocateInfo.displayTime = m_frameState.predictedDisplayTime;
+        viewLocateInfo.space = m_sessionService.m_baseSpace;
+
+        auto views = xr::locateViews(m_sessionService.m_session, viewLocateInfo, viewState, m_sessionService.m_ctx.instance);
+
+        return {viewState, std::move(views)};
+    }
+
+    void SessionStateRunning::updateSpaceLocations() const {
+        std::vector<SpaceLocation> spaceLocations;
+        spaceLocations.reserve(m_sessionService.m_spaces.size());
+        for (const auto &[name, space]: m_sessionService.m_spaces) {
+            auto location = xr::locateSpace(space, m_sessionService.m_baseSpace, m_frameState.predictedDisplayTime);
+            spaceLocations.push_back({name, convert(location.pose)});
+        }
+        if (!spaceLocations.empty()) {
+            m_sessionService.m_renderer->set(spaceLocations);
+        }
     }
 
 

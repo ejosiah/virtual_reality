@@ -47,7 +47,9 @@ namespace vr {
 
         void init();
 
-        void handle(const XrEventDataBuffer &event);
+        void handle(const XrEventDataSessionStateChanged &event);
+
+        void handle(const XrEventDataReferenceSpaceChangePending& event);
         
         void processFrame();
 
@@ -83,7 +85,7 @@ namespace vr {
 
         void createSwapChain();
 
-        void createMainViewSpace();
+        void createBaseReferenceSpace();
 
         void initRenderer();
 
@@ -143,6 +145,10 @@ namespace vr {
         void processFrame() override;
 
         virtual void endFrame();
+
+        ViewInfo getViewInfo() const;
+
+        void updateSpaceLocations() const;
 
     protected:
         XrFrameState m_frameState{ XR_TYPE_FRAME_STATE };

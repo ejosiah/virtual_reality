@@ -59,13 +59,15 @@ namespace vr {
                 if(pollEvents(*context, event)) {
                     switch (event.type) {
                         case XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED :
-                            session.handle(event);
+                            session.handle(reinterpret_cast<XrEventDataSessionStateChanged&>(event));
+                            break;
+                        case XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING:
+                            session.handle(reinterpret_cast<XrEventDataReferenceSpaceChangePending&>(event));
                             break;
                         case XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING :
                             session.stop();
                             break;
                         case XR_TYPE_EVENT_DATA_INTERACTION_PROFILE_CHANGED:
-                        case XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING:
                             break;
                         default: {
                             char buffer[XR_MAX_STRUCTURE_NAME_SIZE];
