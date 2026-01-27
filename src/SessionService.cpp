@@ -279,7 +279,6 @@ namespace vr {
 
         const auto session = m_sessionService.m_session;
         const auto& swapchains = m_sessionService.m_swapchains;
-        const auto xrInstance = m_sessionService.m_ctx.instance;
 
         xrWaitFrame(session, XR_NULL_HANDLE, &m_frameState);
 
@@ -368,6 +367,10 @@ namespace vr {
         spaceLocations.reserve(m_sessionService.m_spaces.size());
         for (const auto &[name, space]: m_sessionService.m_spaces) {
             auto location = xr::locateSpace(space, m_sessionService.m_baseSpace, m_frameState.predictedDisplayTime);
+            const bool orientValid = (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0;
+            const bool posValid = (location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0;
+
+            if (!(orientValid && posValid)) continue;
             spaceLocations.push_back({name, convert(location.pose)});
         }
         if (!spaceLocations.empty()) {
