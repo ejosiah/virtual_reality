@@ -11,7 +11,6 @@
 #include "vr/WindowingSystem.hpp"
 
 #include "SpaceVisiualization.hpp"
-#include "SpaceVisiualization.hpp"
 #include "EnvironmentRenderer.hpp"
 #include "ObjectTest.hpp"
 

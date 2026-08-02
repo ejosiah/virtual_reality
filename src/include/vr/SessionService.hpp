@@ -11,7 +11,7 @@
 
 #include <unordered_map>
 #include <memory>
-#include <span>
+#include <limits>
 
 namespace vr {
 
@@ -87,6 +87,8 @@ namespace vr {
 
         void createBaseReferenceSpace();
 
+        void recreateReferenceSpaces();
+
         void initRenderer();
 
         void transitionTo(XrSessionState state);
@@ -113,6 +115,8 @@ namespace vr {
         std::map<std::string, XrSpace> m_actionSpaces;
         std::vector<ImageId> m_swapChainImages;
         XrEnvironmentBlendMode m_blendMode{XR_ENVIRONMENT_BLEND_MODE_OPAQUE};
+        XrEventDataReferenceSpaceChangePending m_changePending{ .changeTime =  std::numeric_limits<XrTime>::max() };
+        std::vector<std::tuple<std::string, XrSpaceLocation>> m_locationHistory;
     };
 
     class SessionState {
@@ -146,9 +150,9 @@ namespace vr {
 
         virtual void endFrame();
 
-        ViewInfo getViewInfo() const;
+        ViewInfo getViewInfo(XrSpace baseSpace) const;
 
-        void updateSpaceLocations() const;
+        void updateSpaceLocations(XrSpace baseSpace) const;
 
     protected:
         XrFrameState m_frameState{ XR_TYPE_FRAME_STATE };

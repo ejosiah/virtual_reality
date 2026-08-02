@@ -88,6 +88,18 @@ namespace vr {
         spdlog::info("created base reference: {}",(uint64_t)m_baseSpace);
     }
 
+    void SessionService::recreateReferenceSpaces() {
+        for (auto space: m_spaces | std::views::values) {
+            xrDestroySpace(space);
+        }
+        m_spaces.clear();
+        createReferenceSpaces();
+
+        xrDestroySpace(m_baseSpace);
+        createBaseReferenceSpace();
+        m_changePending.changeTime = std::numeric_limits<XrTime>::max();
+    }
+
     void SessionService::initRenderer() {
         m_renderer->init();
     }
@@ -99,6 +111,11 @@ namespace vr {
 
     void SessionService::handle(const XrEventDataReferenceSpaceChangePending &event) {
         spdlog::info("reference space changed, type: {}", toString(event.referenceSpaceType));
+        m_changePending = event;
+
+        if (event.poseValid == XR_TRUE) {
+            spdlog::info("{} pose in previous space: [{}, {}, {}]", toString(event.referenceSpaceType), event.poseInPreviousSpace.position.x, event.poseInPreviousSpace.position.y, event.poseInPreviousSpace.position.z);
+        }
     }
 
     
@@ -282,13 +299,18 @@ namespace vr {
 
         xrWaitFrame(session, XR_NULL_HANDLE, &m_frameState);
 
+        if (m_frameState.predictedDisplayTime >= m_sessionService.m_changePending.changeTime) {
+            m_sessionService.recreateReferenceSpaces();
+        }
+
+        XrSpace frameSpace = m_sessionService.m_baseSpace;
 
         if(XR_SUCCEEDED(xrBeginFrame(session, nullptr))) {
             if(m_frameState.shouldRender){
                 beginFrame();
 
-                updateSpaceLocations();
-                auto viewInfo = getViewInfo();
+                updateSpaceLocations(frameSpace);
+                auto viewInfo = getViewInfo(frameSpace);
 
                 for(const auto& swapchain : swapchains) {
                     if(!swapchain.spec._render) continue;
@@ -312,7 +334,7 @@ namespace vr {
                             }
                         }
 
-                        frameLoop({imageId, viewInfo, m_sessionService.m_baseSpace,
+                        frameLoop({imageId, viewInfo, frameSpace,
                                    m_frameState.predictedDisplayTime, m_frameState.predictedDisplayPeriod, depthImage}, layers);
 
 #ifdef USE_MIRROR_WINDOW
@@ -331,7 +353,7 @@ namespace vr {
             std::vector<XrCompositionLayerBaseHeader*> xrLayers;
             for(const auto& layer : layers) {
                 std::visit([&](auto xrLayer){
-                    xrLayer->space = m_sessionService.m_baseSpace;
+                    xrLayer->space = frameSpace;
                     xrLayers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader*>(xrLayer));
                 }, layer.layer);
             }
@@ -350,23 +372,23 @@ namespace vr {
         m_sessionService.m_renderer->endFrame();
     }
 
-    ViewInfo SessionStateRunning::getViewInfo() const {
+    ViewInfo SessionStateRunning::getViewInfo(XrSpace baseSpace) const {
         auto viewState = makeStruct<XrViewState>();
         auto viewLocateInfo = makeStruct<XrViewLocateInfo>();
         viewLocateInfo.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
         viewLocateInfo.displayTime = m_frameState.predictedDisplayTime;
-        viewLocateInfo.space = m_sessionService.m_baseSpace;
+        viewLocateInfo.space = baseSpace;
 
         auto views = xr::locateViews(m_sessionService.m_session, viewLocateInfo, viewState, m_sessionService.m_ctx.instance);
 
         return {viewState, std::move(views)};
     }
 
-    void SessionStateRunning::updateSpaceLocations() const {
+    void SessionStateRunning::updateSpaceLocations(XrSpace baseSpace) const {
         std::vector<SpaceLocation> spaceLocations;
         spaceLocations.reserve(m_sessionService.m_spaces.size());
         for (const auto &[name, space]: m_sessionService.m_spaces) {
-            auto location = xr::locateSpace(space, m_sessionService.m_baseSpace, m_frameState.predictedDisplayTime);
+            auto location = xr::locateSpace(space, baseSpace, m_frameState.predictedDisplayTime);
             const bool orientValid = (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0;
             const bool posValid = (location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0;
 
@@ -402,7 +424,7 @@ namespace vr {
         const auto& activeSets = m_sessionService.m_activeActionSets;
         const auto& session = m_sessionService.m_session;
         const auto& actionSpaces = m_sessionService.m_actionSpaces;
-        const auto& baseSpace = m_sessionService.m_baseSpace;
+        const auto baseSpace = m_sessionService.m_baseSpace;
 
         m_sessionService.m_renderer->beginFrame();
 
